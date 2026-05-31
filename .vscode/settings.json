@@ -1,0 +1,16 @@
+{
+  // 保存时自动格式化整个文件（而不是只改动的行）
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
+
+  // C/C++ 文件用微软 cpptools 扩展来格式化
+  "[cpp]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[c]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+
+  // 让 cpptools 读取项目根的 .clang-format 文件（而不是它内置的默认风格）
+  "C_Cpp.clang_format_style": "file"
+}

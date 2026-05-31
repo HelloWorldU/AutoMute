@@ -16,9 +16,12 @@ cmake_install.cmake
 
 # IDE / editor
 .vs/
-.vscode/
 .idea/
 *.user
+# .vscode 杂项忽略，但共享格式化等团队配置入库（仿 vllm）
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # OS
 Thumbs.db
