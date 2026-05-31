@@ -1,44 +1,52 @@
 # AutoMute
 
-> 看直播时，从一条混合音频里**实时、低延迟地掐掉某一个指定人的声音**，其余照常播放。
-> 同时作为深入学习 C++ 的实践项目。
+**English** | [简体中文](README.zh-CN.md)
 
-聚焦场景：**看口型的内容**（有人脸说话）、多人**轮流说话**（不重叠）、**Windows** 平台。
+> Watching a livestream, **mute one specific person's voice in real time, with
+> low latency** — from a single mixed audio stream, while everyone else keeps
+> playing normally. Also a hands-on project for learning C++ in depth.
 
-## 它是怎么工作的
+Target scenario: **lip-sync-sensitive content** (faces talking on screen),
+people speaking **in turns** (non-overlapping), on **Windows**.
 
-你没法掐掉一个还没听到的声音——所以工具抓取系统正在播放的混合音频，实时判断
-“现在说话的是不是目标那个人”，是就把这一段掐掉。判断需要一小段音频（~200–400ms，
-声学物理下限），因此目标每次开口的**最初一瞬会漏出来**，随后被静音。换取的是
-**音画不延迟**——对看口型的内容，这比全程音画不同步更可接受。
+## How it works
 
-设计细节见 [`docs/DESIGN.md`](docs/DESIGN.md)，实现进度见 [`docs/STATUS.md`](docs/STATUS.md)。
+You can't mute a voice you haven't heard yet. So the tool captures the mixed
+audio the system is playing, decides in real time *"is the current speaker the
+target?"*, and gates out that span if so. The decision needs a short slice of
+audio (~200–400 ms — a physical floor for acoustic speaker ID), so the **first
+moment of each of the target's turns leaks through** before muting catches up.
+What you get in return is **no audio/video delay** — for lip-sync content,
+that's more acceptable than a constant A/V mismatch.
 
-## 路线图
+Design details in [`docs/DESIGN.md`](docs/DESIGN.md); implementation status in
+[`docs/STATUS.md`](docs/STATUS.md).
 
-| 里程碑 | 内容 | 状态 |
-|--------|------|------|
-| **M1** | WASAPI loopback 抓取 → 回放，测延迟，手动静音开关 | 🚧 抓取已通 |
-| M2 | 录入目标声纹 → ONNX 推理 → 实时比对 → 命中即掐 | ❌ |
-| M3 | 调优：压短判断窗口、VAD 抗噪、阈值调参 | ❌ |
+## Roadmap
 
-## 构建
+| Milestone | Scope | Status |
+|-----------|-------|--------|
+| **M1** | WASAPI loopback capture → playback, measure latency, manual mute toggle | 🚧 capture working |
+| M2 | Enroll target voiceprint → ONNX inference → real-time match → gate on hit | ❌ |
+| M3 | Tuning: shrink the decision window, VAD noise robustness, threshold tuning | ❌ |
 
-需要 CMake ≥ 3.20 与一个 C++20 编译器（开发用 MinGW g++ 14）。
+## Build
+
+Requires CMake ≥ 3.20 and a C++20 compiler (developed with MinGW g++ 14).
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-./build/bin/automute_probe      # 当前：监听系统输出，打印实时音量条
+./build/bin/automute_probe      # current: listens to system output, prints a live level meter
 ```
 
-播放任意声音，能看到电平条随之跳动，即说明抓取链路正常。
+Play any sound — the level meter should react, confirming the capture path works.
 
-## 技术栈
+## Tech stack
 
-- **C++20** — 实时音频引擎自写（环形缓冲 / 无锁队列 / 低延迟线程）
-- **WASAPI** — Windows 系统音频 loopback 抓取与回放
-- **ONNX Runtime**（计划中）— 调用预训练轻量声纹模型（ECAPA / x-vector）
+- **C++20** — real-time audio engine written from scratch (ring buffer / lock-free queue / low-latency threads)
+- **WASAPI** — Windows system-audio loopback capture and playback
+- **ONNX Runtime** (planned) — run a pretrained lightweight speaker model (ECAPA / x-vector)
 
 ## License
 

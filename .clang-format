@@ -1,0 +1,23 @@
+# AutoMute 代码风格 —— clang-format 配置
+# clang-format 会按这里的规则自动重排你的 C++ 代码：缩进、换行、空格、指针位置…
+# 用法： clang-format -i 文件.cpp   （-i = in-place，直接改文件）
+# 编辑器（VSCode/CLion）可设“保存时自动格式化”，从此再不用手动对齐。
+
+# 以 LLVM 项目自身的风格为基线（你在追的那个项目就用它）。
+# 其它常见基线：Google / Mozilla / WebKit / Microsoft —— 换一行就切风格。
+BasedOnStyle: LLVM
+
+# ---- 覆盖几条，挑更适合本项目的 ----
+
+IndentWidth: 2          # 每级缩进 2 空格（LLVM/Google 惯例；很多人习惯 4，这里跟 LLVM）
+UseTab: Never           # 永远用空格，不用 Tab —— 跨编辑器对齐才一致
+ColumnLimit: 80         # 每行最多 80 列，超了自动折行（老传统，强制你写短表达式）
+
+# 指针/引用贴着类型写： int* p 而不是 int *p。
+# 含义是“指针是类型的一部分”，对新手更直观（覆盖 LLVM 默认的右对齐）。
+PointerAlignment: Left
+DerivePointerAlignment: false   # 别根据现有代码猜方向，严格按上面这条
+
+# #include 的分组排序：clang-format 能自动给头文件排序分组。
+# 先关掉自动排序，避免它打乱“先 windows.h 再 WASAPI 头”这种有依赖顺序的包含。
+SortIncludes: false
