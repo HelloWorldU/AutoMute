@@ -1,10 +1,27 @@
+<div align="center">
+
 # AutoMute
 
-**English** | [简体中文](README.zh-CN.md)
+### Real-time selective voice muting for livestreams
 
-> Watching a livestream, **mute one specific person's voice in real time, with
-> low latency** — from a single mixed audio stream, while everyone else keeps
-> playing normally. Also a hands-on project for learning C++ in depth.
+**Mute one specific person's voice in real time — from a single mixed audio stream, while everyone else keeps playing normally.**
+
+A hands-on project for learning C++ in depth: real-time audio, WASAPI, lock-free pipelines, ONNX inference.
+
+[![License](https://img.shields.io/github/license/HelloWorldU/AutoMute)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows-blue)](https://github.com/HelloWorldU/AutoMute)
+[![C++](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
+[![Stars](https://img.shields.io/github/stars/HelloWorldU/AutoMute?style=flat)](https://github.com/HelloWorldU/AutoMute/stargazers)
+
+**[🏗 Design](docs/DESIGN.md)** · **[📊 Status](docs/STATUS.md)** · **[简体中文](README.zh-CN.md)**
+
+</div>
+
+---
+
+> 🚧 **Work in progress.** Also a proving ground for learning C++ — the value is
+> as much in *how it's built* (real-time audio engine from scratch) as in the
+> finished tool.
 
 Target scenario: **lip-sync-sensitive content** (faces talking on screen),
 people speaking **in turns** (non-overlapping), on **Windows**.

@@ -1,9 +1,26 @@
+<div align="center">
+
 # AutoMute
 
-[English](README.md) | **简体中文**
+### 直播实时定向静音
 
-> 看直播时，从一条混合音频里**实时、低延迟地掐掉某一个指定人的声音**，其余照常播放。
-> 同时作为深入学习 C++ 的实践项目。
+**看直播时，从一条混合音频里实时掐掉某一个指定人的声音，其余照常播放。**
+
+一个深入学习 C++ 的实践项目：实时音频、WASAPI、无锁管线、ONNX 推理。
+
+[![License](https://img.shields.io/github/license/HelloWorldU/AutoMute)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows-blue)](https://github.com/HelloWorldU/AutoMute)
+[![C++](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
+[![Stars](https://img.shields.io/github/stars/HelloWorldU/AutoMute?style=flat)](https://github.com/HelloWorldU/AutoMute/stargazers)
+
+**[🏗 设计](docs/DESIGN.md)** · **[📊 状态](docs/STATUS.md)** · **[English](README.md)**
+
+</div>
+
+---
+
+> 🚧 **开发中。** 同时作为学 C++ 的练兵场——价值既在做出来的工具，也在*它是怎么搭起来的*
+> （从零自写的实时音频引擎）。
 
 聚焦场景：**看口型的内容**（有人脸说话）、多人**轮流说话**（不重叠）、**Windows** 平台。
 
