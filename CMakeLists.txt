@@ -40,3 +40,11 @@ if(EXISTS ${ORT_DIR})
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
           ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:automute_ort_probe>)
 endif()
+
+# M2.2b: 特征提取探针 —— 读 wav（→ fbank → 声纹，逐步长大）。
+add_executable(automute_feat_probe
+    automute/feat_probe.cpp
+    automute/audio/wav_io.cpp
+)
+target_include_directories(automute_feat_probe PRIVATE
+    ${CMAKE_SOURCE_DIR}/third_party/dr_libs)
