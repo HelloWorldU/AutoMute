@@ -25,8 +25,8 @@
 |---|------|------|
 | M2.1 | 集成 ONNX Runtime（预编译二进制）+ 跑通 dummy 推理，证明能链接能跑 | ✅ MinGW 直链 MSVC .lib 成功，Env 初始化通过（v1.26.0） |
 | M2.2a | 加载真实模型 + 假数据跑通推理，确认 I/O 规格 | ✅ feats[B,T,80] → embs[B,192]，假输入推理成功 |
-| M2.2b | 写 fbank 特征提取，喂真 wav → 得到真 embedding | ❌ ← 下一步 |
-| M2.3 | 录入：加载目标样本 → 算 embedding → 存为声纹 | ❌ |
+| M2.2b | 写 fbank 特征提取，喂真 wav → 得到真 embedding | ✅ wav→fbank(298×80)→模型→192维声纹，全管线通 |
+| M2.3 | 用真实语音验证可区分性：算多段 embedding，余弦相似度同人>异人；顺带把"算 embedding"封装成可复用函数（即录入核心）| ❌ ← 下一步 |
 | M2.4 | 实时分析线程：抓取端分流音频到第二个环形缓冲 → 攒窗口 → 推理 → 余弦比对目标声纹 → 出判定 | ❌ |
 | M2.5 | 接线：判定结果驱动 gate（替换手动 m 键，实现自动掐声） | ❌ |
 
@@ -39,9 +39,10 @@
 | 静音门控（gate） | ✅ | 手动开关（m 键），抓取端写静音；M2 接声纹自动触发 | `automute/passthrough_main.cpp` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
-| 声纹推理（ONNX Runtime C++） | 🚧 | 工具链已通（M2.1）：ORT 1.26 接入 CMake，MinGW 可链接可初始化；模型推理待接（M2.2） | `automute/ort_probe.cpp`, `third_party/onnxruntime/` |
+| 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/feat_probe.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
+| 声纹推理（ONNX Runtime C++） | ✅ | 全管线通：wav→fbank→ECAPA 模型→192 维 embedding（ORT 1.26，MinGW） | `automute/feat_probe.cpp`, `third_party/onnxruntime/` |
 | VAD + 阈值调参 | ❌ | M3 | — |
 
 ---
 
-*下一步：M2.2b — 写 fbank 特征提取（16kHz 单声道 / 25ms 帧 / 10ms 跳 / 80 mel），喂真 wav → 真 embedding。模型规格：feats[B,T,80] → embs[B,192]。*
+*下一步：M2.3 — 拿 2~3 段真实语音（同人×2、异人×1），各算 embedding，算余弦相似度，验证"同人高、异人低"。这是整套方案能否成立的关键证明；顺带把"wav→embedding"封装成可复用函数（= 录入的核心）。*

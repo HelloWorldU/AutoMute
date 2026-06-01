@@ -41,10 +41,25 @@ if(EXISTS ${ORT_DIR})
           ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:automute_ort_probe>)
 endif()
 
-# M2.2b: 特征提取探针 —— 读 wav（→ fbank → 声纹，逐步长大）。
-add_executable(automute_feat_probe
-    automute/feat_probe.cpp
-    automute/audio/wav_io.cpp
-)
-target_include_directories(automute_feat_probe PRIVATE
-    ${CMAKE_SOURCE_DIR}/third_party/dr_libs)
+# M2.2b: 特征提取 + 声纹推理探针 —— wav → fbank → ONNX 模型 → embedding。
+set(KNF_DIR ${CMAKE_SOURCE_DIR}/third_party/kaldi-native-fbank)
+if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
+  set(KALDI_NATIVE_FBANK_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(KALDI_NATIVE_FBANK_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+  add_subdirectory(${KNF_DIR} kaldi-native-fbank-build)
+
+  add_executable(automute_feat_probe
+      automute/feat_probe.cpp
+      automute/audio/wav_io.cpp
+  )
+  target_include_directories(automute_feat_probe PRIVATE
+      ${CMAKE_SOURCE_DIR}/third_party/dr_libs
+      ${ORT_DIR}/include
+      ${KNF_DIR})  # 让 "kaldi-native-fbank/csrc/..." 解析得到
+  target_link_libraries(automute_feat_probe PRIVATE
+      kaldi-native-fbank-core
+      ${ORT_DIR}/lib/onnxruntime.lib)
+  add_custom_command(TARGET automute_feat_probe POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:automute_feat_probe>)
+endif()
