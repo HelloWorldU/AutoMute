@@ -20,8 +20,8 @@ public:
   // 在【渲染线程】上调用：初始化 COM、拿默认输出设备、以事件驱动模式打开。
   bool initialize();
 
-  // 阻塞式渲染循环：被事件唤醒 → 从 src 取数据填进设备缓冲 → 直到 keepRunning 变 false。
-  // src 不够时(欠载/underrun)用静音补齐，避免爆音。
+  // 阻塞式渲染循环：被事件唤醒 → 从 src 取数据填进设备缓冲 → 直到 keepRunning
+  // 变 false。 src 不够时(欠载/underrun)用静音补齐，避免爆音。
   void run(SpscRingBuffer<float>& src, std::atomic<bool>& keepRunning);
 
   uint32_t sampleRate() const { return sampleRate_; }

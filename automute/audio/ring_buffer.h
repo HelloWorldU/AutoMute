@@ -22,8 +22,7 @@
 #include <cstring>
 #include <vector>
 
-template <typename T>
-class SpscRingBuffer {
+template <typename T> class SpscRingBuffer {
 public:
   // capacity = 能存多少个元素。实际多分配 1 个空位用于区分“空/满”。
   explicit SpscRingBuffer(size_t capacity)
@@ -37,7 +36,8 @@ public:
     const size_t tail = tail_.load(std::memory_order_acquire);
 
     const size_t freeSpace = freeCount(head, tail);
-    if (n > freeSpace) n = freeSpace;
+    if (n > freeSpace)
+      n = freeSpace;
 
     // 可能要跨越数组末尾，分两段拷贝。
     const size_t firstChunk = std::min(n, capacity_ - head);
@@ -45,7 +45,8 @@ public:
     if (n > firstChunk)
       std::memcpy(&buffer_[0], data + firstChunk, (n - firstChunk) * sizeof(T));
 
-    // release 存储：保证上面的数据写入，对随后 acquire 读到新 head 的消费者【可见】。
+    // release 存储：保证上面的数据写入，对随后 acquire 读到新 head
+    // 的消费者【可见】。
     head_.store(advance(head, n), std::memory_order_release);
     return n;
   }
@@ -56,7 +57,8 @@ public:
     const size_t head = head_.load(std::memory_order_acquire);
 
     const size_t available = usedCount(head, tail);
-    if (n > available) n = available;
+    if (n > available)
+      n = available;
 
     const size_t firstChunk = std::min(n, capacity_ - tail);
     std::memcpy(out, &buffer_[tail], firstChunk * sizeof(T));

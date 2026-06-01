@@ -19,13 +19,16 @@ struct RenderPlayback::Impl {
   bool coInitialized = false;
 
   ~Impl() {
-    if (mixFormat) CoTaskMemFree(mixFormat);
-    if (bufferEvent) CloseHandle(bufferEvent);
+    if (mixFormat)
+      CoTaskMemFree(mixFormat);
+    if (bufferEvent)
+      CloseHandle(bufferEvent);
     render.reset();
     client.reset();
     device.reset();
     enumerator.reset();
-    if (coInitialized) CoUninitialize();
+    if (coInitialized)
+      CoUninitialize();
   }
 };
 
@@ -79,7 +82,8 @@ bool RenderPlayback::initialize() {
   sampleRate_ = impl_->mixFormat->nSamplesPerSec;
   channels_ = impl_->mixFormat->nChannels;
 
-  // 事件驱动模式：传 EVENTCALLBACK 标志，buffer/periodicity 给 0 = 用引擎默认周期。
+  // 事件驱动模式：传 EVENTCALLBACK 标志，buffer/periodicity 给 0 =
+  // 用引擎默认周期。
   hr = impl_->client->Initialize(AUDCLNT_SHAREMODE_SHARED,
                                  AUDCLNT_STREAMFLAGS_EVENTCALLBACK, 0, 0,
                                  impl_->mixFormat, nullptr);
@@ -124,7 +128,8 @@ void RenderPlayback::run(SpscRingBuffer<float>& src,
   BYTE* data = nullptr;
   HRESULT hr = impl_->render->GetBuffer(impl_->bufferFrames, &data);
   if (SUCCEEDED(hr)) {
-    impl_->render->ReleaseBuffer(impl_->bufferFrames, AUDCLNT_BUFFERFLAGS_SILENT);
+    impl_->render->ReleaseBuffer(impl_->bufferFrames,
+                                 AUDCLNT_BUFFERFLAGS_SILENT);
   }
 
   hr = impl_->client->Start();
@@ -138,21 +143,26 @@ void RenderPlayback::run(SpscRingBuffer<float>& src,
   while (keepRunning.load(std::memory_order_relaxed)) {
     // 等引擎唤醒（最多等 200ms，以便能响应退出）。
     DWORD wait = WaitForSingleObject(impl_->bufferEvent, 200);
-    if (wait != WAIT_OBJECT_0) continue;
+    if (wait != WAIT_OBJECT_0)
+      continue;
 
     UINT32 padding = 0; // 设备缓冲里还没播完的帧数
-    if (FAILED(impl_->client->GetCurrentPadding(&padding))) break;
+    if (FAILED(impl_->client->GetCurrentPadding(&padding)))
+      break;
 
     const UINT32 framesToWrite = impl_->bufferFrames - padding;
-    if (framesToWrite == 0) continue;
+    if (framesToWrite == 0)
+      continue;
 
-    if (FAILED(impl_->render->GetBuffer(framesToWrite, &data))) break;
+    if (FAILED(impl_->render->GetBuffer(framesToWrite, &data)))
+      break;
 
     // 从环形缓冲取 framesToWrite*ch 个样本；不够就用 0 补（underrun → 静音）。
     const size_t need = static_cast<size_t>(framesToWrite) * ch;
     chunk.resize(need);
     const size_t got = src.read(chunk.data(), need);
-    for (size_t i = got; i < need; ++i) chunk[i] = 0.0f;
+    for (size_t i = got; i < need; ++i)
+      chunk[i] = 0.0f;
 
     std::memcpy(data, chunk.data(), need * sizeof(float));
     impl_->render->ReleaseBuffer(framesToWrite, 0);
