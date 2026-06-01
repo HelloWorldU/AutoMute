@@ -32,6 +32,5 @@ desktop.ini
 *.bin
 /models/
 
-# 第三方库（体积大或可重新获取，不入库；按 docs 下载/clone）
-/third_party/onnxruntime/
-/third_party/kaldi-native-fbank/
+# 第三方库一律不入库（体积大或可重新获取）；用 scripts/fetch-deps.ps1 一键拉取
+/third_party/

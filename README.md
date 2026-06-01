@@ -51,7 +51,11 @@ Design details in [`docs/DESIGN.md`](docs/DESIGN.md); implementation status in
 
 Requires CMake ≥ 3.20 and a C++20 compiler (developed with MinGW g++ 14).
 
-```bash
+```powershell
+# 0. Fetch third-party deps (ONNX Runtime, kaldi-native-fbank, dr_wav, model) — NOT committed
+powershell -ExecutionPolicy Bypass -File scripts\fetch-deps.ps1
+
+# 1. Configure & build
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/bin/automute_probe      # current: listens to system output, prints a live level meter

@@ -45,7 +45,11 @@
 
 需要 CMake ≥ 3.20 与一个 C++20 编译器（开发用 MinGW g++ 14）。
 
-```bash
+```powershell
+# 0. 拉取第三方依赖（ONNX Runtime、kaldi-native-fbank、dr_wav、模型）—— 不入库
+powershell -ExecutionPolicy Bypass -File scripts\fetch-deps.ps1
+
+# 1. 配置 & 构建
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/bin/automute_probe      # 当前：监听系统输出，打印实时音量条
