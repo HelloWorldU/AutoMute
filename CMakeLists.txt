@@ -28,3 +28,15 @@ add_executable(automute_passthrough
     automute/audio/render_playback.cpp
 )
 target_link_libraries(automute_passthrough PRIVATE ${WASAPI_LIBS})
+
+# M2.1: ONNX Runtime 探针 —— 验证 ORT 能在 MinGW+CMake 下链接并初始化。
+set(ORT_DIR ${CMAKE_SOURCE_DIR}/third_party/onnxruntime)
+if(EXISTS ${ORT_DIR})
+  add_executable(automute_ort_probe automute/ort_probe.cpp)
+  target_include_directories(automute_ort_probe PRIVATE ${ORT_DIR}/include)
+  target_link_libraries(automute_ort_probe PRIVATE ${ORT_DIR}/lib/onnxruntime.lib)
+  # 运行时需要 DLL 在 exe 旁边。
+  add_custom_command(TARGET automute_ort_probe POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:automute_ort_probe>)
+endif()

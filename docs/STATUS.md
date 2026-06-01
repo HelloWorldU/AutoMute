@@ -23,8 +23,8 @@
 
 | # | 目标 | 状态 |
 |---|------|------|
-| M2.1 | 集成 ONNX Runtime（预编译二进制）+ 跑通 dummy 推理，证明能链接能跑 | ❌ ← 下一步 |
-| M2.2 | 跑真实声纹模型：喂一段 wav → 得到 embedding 向量 | ❌ |
+| M2.1 | 集成 ONNX Runtime（预编译二进制）+ 跑通 dummy 推理，证明能链接能跑 | ✅ MinGW 直链 MSVC .lib 成功，Env 初始化通过（v1.26.0） |
+| M2.2 | 跑真实声纹模型：喂一段 wav → 得到 embedding 向量 | ❌ ← 下一步 |
 | M2.3 | 录入：加载目标样本 → 算 embedding → 存为声纹 | ❌ |
 | M2.4 | 实时分析线程：抓取端分流音频到第二个环形缓冲 → 攒窗口 → 推理 → 余弦比对目标声纹 → 出判定 | ❌ |
 | M2.5 | 接线：判定结果驱动 gate（替换手动 m 键，实现自动掐声） | ❌ |
@@ -38,9 +38,9 @@
 | 静音门控（gate） | ✅ | 手动开关（m 键），抓取端写静音；M2 接声纹自动触发 | `automute/passthrough_main.cpp` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
-| 声纹推理（ONNX Runtime C++） | ❌ | M2，借预训练模型 | — |
+| 声纹推理（ONNX Runtime C++） | 🚧 | 工具链已通（M2.1）：ORT 1.26 接入 CMake，MinGW 可链接可初始化；模型推理待接（M2.2） | `automute/ort_probe.cpp`, `third_party/onnxruntime/` |
 | VAD + 阈值调参 | ❌ | M3 | — |
 
 ---
 
-*下一步：M2.1 — 集成 ONNX Runtime，跑通一次 dummy 推理（spike），先确认工具链能用，再谈识别。*
+*下一步：M2.2 — 找一个 ECAPA-TDNN ONNX 模型，喂一段 wav 跑出 embedding 向量。*

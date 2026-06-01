@@ -31,3 +31,6 @@ desktop.ini
 *.onnx
 *.bin
 /models/
+
+# 第三方预编译库（体积大，不入库；按 docs 下载）
+/third_party/onnxruntime/
