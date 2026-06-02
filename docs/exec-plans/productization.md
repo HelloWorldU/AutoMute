@@ -37,6 +37,6 @@
 子步骤：
 - ✅ P2.1 spike：MinGW 手补 `AUDIOCLIENT_ACTIVATION_PARAMS` 等缺失声明；
   `ProcessLoopbackCapture::initialize(pid)` 异步激活成功；`automute_ploop_probe <PID>` 验证抓取。
-- ❌ P2.2 进程选择器：枚举音频会话（`IAudioSessionManager2`）列出"正在出声的进程 + PID + 名字"供选。
-- ❌ P2.3 静音目标直接输出：`ISimpleAudioVolume` 把目标进程会话设静音（注意验证是否影响 loopback 抓取）。
-- ❌ P2.4 接主程序：进程 loopback 抓取替换设备 loopback；渲染到喇叭；无反馈。
+- ✅ P2.2 进程选择器：`audio_sessions` 枚举会话列出"进程 + PID + 是否出声"；`automute_app --apps` 验证（QQMusic/chrome）。
+- ✅ P2.3 静音目标直接输出：`setProcessMuted(pid,bool)` 经 `ISimpleAudioVolume::SetMute`（实现完成，是否影响 loopback 抓取待 P2.4 同跑验证）。
+- ❌ P2.4 接主程序：进程 loopback 抓取替换设备 loopback + 静音目标直接输出；渲染到喇叭；无反馈。← 下一步

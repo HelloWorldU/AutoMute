@@ -82,7 +82,7 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
   add_executable(automute_app
       automute/app_main.cpp ${EMBED_SRCS}
       automute/audio/loopback_capture.cpp automute/audio/render_playback.cpp
-      automute/audio/audio_devices.cpp)
+      automute/audio/audio_devices.cpp automute/audio/audio_sessions.cpp)
   target_include_directories(automute_app PRIVATE ${EMBED_INCS})
   target_link_libraries(automute_app PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS})
 

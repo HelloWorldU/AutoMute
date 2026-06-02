@@ -40,6 +40,8 @@
 | 实时声纹检测 | ✅ | 抓取+分析双线程，1.5s 窗 enroll 比对，打印是否目标在说话 | `automute/detect_main.cpp` |
 | **主程序：自动定向静音** | ✅ | 抓取+渲染(带gate)+分析三线程，检测目标→自动静音；核心闭环 | `automute/app_main.cpp` |
 | 设备选择（产品化 P1） | ✅ | 枚举输出设备 + 按序号选抓/放（`--list/--in/--out`）；配虚拟声卡消除反馈的地基 | `automute/audio/audio_devices.{h,cpp}` |
+| 进程 loopback 抓取（P2.1） | ✅ | 按 PID 抓单个进程音频（MinGW 手补 API）；天然无反馈 | `automute/audio/process_loopback.{h,cpp}` |
+| 进程选择 + 静音（P2.2/2.3） | ✅ | 枚举出声进程（`--apps`）+ 按 PID 静音其直接输出 | `automute/audio/audio_sessions.{h,cpp}` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
 | 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/feat_probe.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |

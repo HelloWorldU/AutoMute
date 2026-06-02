@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "automute/audio/audio_devices.h"
+#include "automute/audio/audio_sessions.h"
 #include "automute/audio/embedder.h"
 #include "automute/audio/loopback_capture.h"
 #include "automute/audio/render_playback.h"
@@ -39,6 +40,9 @@ int main(int argc, char** argv) {
     std::string a = argv[i];
     if (a == "--list") {
       printRenderDevices();
+      return 0;
+    } else if (a == "--apps") {
+      printAudioSessions();
       return 0;
     } else if (a == "--in" && i + 1 < argc) {
       inDevice = atoi(argv[++i]);
