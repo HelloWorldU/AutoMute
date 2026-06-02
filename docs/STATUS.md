@@ -39,6 +39,7 @@
 | 静音门控（gate） | ✅ | 手动开关（m 键），抓取端写静音；M2.5 接声纹判定自动触发 | `automute/passthrough_main.cpp` |
 | 实时声纹检测 | ✅ | 抓取+分析双线程，1.5s 窗 enroll 比对，打印是否目标在说话 | `automute/detect_main.cpp` |
 | **主程序：自动定向静音** | ✅ | 抓取+渲染(带gate)+分析三线程，检测目标→自动静音；核心闭环 | `automute/app_main.cpp` |
+| 设备选择（产品化 P1） | ✅ | 枚举输出设备 + 按序号选抓/放（`--list/--in/--out`）；配虚拟声卡消除反馈的地基 | `automute/audio/audio_devices.{h,cpp}` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
 | 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/feat_probe.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
@@ -49,4 +50,5 @@
 
 ---
 
-*下一步：M3 — 调优。核心闭环已成（automute_app）。待办：① 真机验证自动掐声端到端；② 压短判断窗口(1.5s→更短)减少开头泄漏；③ 滑动窗+VAD 让判定更跟手；④ 阈值调参。另：真正落地需虚拟声卡路由（避免同设备 loopback 回声），见 DESIGN。*
+*下一步：产品化 P2（进程 loopback，无需虚拟声卡）；或 M3 调优（压短窗口/VAD/阈值）。
+P1 设备选择已完成 —— 用户装 VB-CABLE 后即可 `--in <虚拟声卡> --out <喇叭>` 消除反馈、验证端到端自动掐声。详见 [`exec-plans/productization.md`](exec-plans/productization.md)。*

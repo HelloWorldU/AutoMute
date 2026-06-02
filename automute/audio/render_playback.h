@@ -17,8 +17,9 @@ public:
   RenderPlayback() = default;
   ~RenderPlayback();
 
-  // 在【渲染线程】上调用：初始化 COM、拿默认输出设备、以事件驱动模式打开。
-  bool initialize();
+  // 在【渲染线程】上调用：初始化 COM、拿输出设备、以事件驱动模式打开。
+  // deviceIndex: -1 用默认设备；>=0 用枚举列表里第 index 个。
+  bool initialize(int deviceIndex = -1);
 
   // 阻塞式渲染循环：被事件唤醒 → 从 src 取数据填进设备缓冲 → 直到 keepRunning
   // 变 false。 src 不够时(欠载/underrun)用静音补齐，避免爆音。

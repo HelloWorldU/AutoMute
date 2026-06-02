@@ -76,7 +76,8 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
   # automute_app：主程序 —— 自动定向静音闭环（M2.5）
   add_executable(automute_app
       automute/app_main.cpp ${EMBED_SRCS}
-      automute/audio/loopback_capture.cpp automute/audio/render_playback.cpp)
+      automute/audio/loopback_capture.cpp automute/audio/render_playback.cpp
+      automute/audio/audio_devices.cpp)
   target_include_directories(automute_app PRIVATE ${EMBED_INCS})
   target_link_libraries(automute_app PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS})
 

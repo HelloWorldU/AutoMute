@@ -21,6 +21,7 @@
 #include <thread>
 #include <vector>
 
+#include "automute/audio/audio_devices.h"
 #include "automute/audio/embedder.h"
 #include "automute/audio/loopback_capture.h"
 #include "automute/audio/render_playback.h"
@@ -28,11 +29,27 @@
 
 int main(int argc, char** argv) {
   SetConsoleOutputCP(CP_UTF8);
-  std::string targetWav =
-      (argc > 1) ? argv[1] : "models/test_speakers/spkA_1272_1.wav";
-  std::string model =
-      (argc > 2) ? argv[2] : "models/voxceleb_ECAPA512_LM.onnx";
+  std::string targetWav = "models/test_speakers/spkA_1272_1.wav";
+  std::string model = "models/voxceleb_ECAPA512_LM.onnx";
+  int inDevice = -1, outDevice = -1; // -1 = 默认设备
   const float THRESH = 0.5f;
+
+  // 参数解析：--list 列设备；--in/--out 选设备；以 .onnx 结尾当模型，其余当目标 wav。
+  for (int i = 1; i < argc; ++i) {
+    std::string a = argv[i];
+    if (a == "--list") {
+      printRenderDevices();
+      return 0;
+    } else if (a == "--in" && i + 1 < argc) {
+      inDevice = atoi(argv[++i]);
+    } else if (a == "--out" && i + 1 < argc) {
+      outDevice = atoi(argv[++i]);
+    } else if (a.size() > 5 && a.substr(a.size() - 5) == ".onnx") {
+      model = a;
+    } else {
+      targetWav = a;
+    }
+  }
 
   // 登记目标声纹
   Embedder emb;
@@ -59,7 +76,7 @@ int main(int argc, char** argv) {
   // 抓取线程：交错→播放缓冲，降混单声道→分析缓冲
   std::thread capThread([&] {
     LoopbackCapture cap;
-    if (!cap.initialize()) {
+    if (!cap.initialize(inDevice)) {
       printf("抓取初始化失败: %s\n", cap.error().c_str());
       running.store(false);
       return;
@@ -84,7 +101,7 @@ int main(int argc, char** argv) {
   // 渲染线程：播放缓冲→设备，按 muted 自动掐声
   std::thread renThread([&] {
     RenderPlayback ren;
-    if (!ren.initialize()) {
+    if (!ren.initialize(outDevice)) {
       printf("渲染初始化失败: %s\n", ren.error().c_str());
       running.store(false);
       return;

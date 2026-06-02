@@ -41,7 +41,7 @@ void RenderPlayback::fail(const std::string& where, long hr) {
   error_ = buf;
 }
 
-bool RenderPlayback::initialize() {
+bool RenderPlayback::initialize(int deviceIndex) {
   impl_ = new Impl();
 
   HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -59,12 +59,26 @@ bool RenderPlayback::initialize() {
     return false;
   }
 
-  // eRender + eConsole = 默认输出设备（和 loopback 抓的是同一个）。
-  hr = impl_->enumerator->GetDefaultAudioEndpoint(eRender, eConsole,
-                                                  &impl_->device);
-  if (FAILED(hr)) {
-    fail("GetDefaultAudioEndpoint", hr);
-    return false;
+  if (deviceIndex < 0) {
+    hr = impl_->enumerator->GetDefaultAudioEndpoint(eRender, eConsole,
+                                                    &impl_->device);
+    if (FAILED(hr)) {
+      fail("GetDefaultAudioEndpoint", hr);
+      return false;
+    }
+  } else {
+    ComPtr<IMMDeviceCollection> col;
+    hr = impl_->enumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE,
+                                               &col);
+    if (FAILED(hr)) {
+      fail("EnumAudioEndpoints", hr);
+      return false;
+    }
+    hr = col->Item((UINT)deviceIndex, &impl_->device);
+    if (FAILED(hr)) {
+      fail("Collection::Item(设备序号越界?)", hr);
+      return false;
+    }
   }
 
   hr = impl_->device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
