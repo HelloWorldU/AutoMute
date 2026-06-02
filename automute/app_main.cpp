@@ -1,15 +1,22 @@
 //
-// AutoMute —— 主程序（M2.5：自动定向静音闭环）。
+// AutoMute —— 主程序（P2.4：进程级定向静音）。
 //
-//   抓取线程 ─┬─► 播放 ring buffer ──► 渲染线程 ──► 输出设备
-//             │                          ▲ 按 muted 掐声
-//             └─► 分析 ring buffer ──► 分析线程：声纹判定 → 设 muted
+//   目标 App(PID) ─► 进程 loopback 抓它的音频 ─┬─► 播放 ring buffer ─► 渲染线程 ─► 喇叭(默认设备)
+//                                             │                       ▲ 按 muted 掐声
+//                                             └─► 分析 ring buffer ─► 分析线程：声纹判定 → 设 muted
 //
-//   检测到“目标在说话”就自动静音其余照常。q 退出。
-//   用法: automute_app [目标.wav] [model.onnx]
+//   抓取与“用户耳朵”必须分路：把目标 App 的输出路由到虚拟声卡(用户听不到)，
+//   我们从进程 loopback 抓它(不静音→抓得到)、做声纹门控、再渲染到喇叭。
+//   ⚠️ 不能用 SetMute 静音目标 App：会话静音在 loopback 抽头的【上游】，
+//      一静音连我们自己也抓不到（已真机验证：mute→loopback 变 -120dB）。
+//   检测到“目标在说话”就自动静音，其余照常。q 退出。
 //
-//   ⚠️ 同设备 loopback 抓取+回放会有回声反馈，仅作短测试（建议调低系统音量）。
-//      真正落地需把直播 App 输出路由到虚拟声卡（见 docs/DESIGN.md）。
+//   用法:
+//     automute_app --apps                              列出在出声的进程及 PID
+//     automute_app --proc <PID> [目标.wav] [model.onnx]
+//
+//   准备(一次性): 装 VB-CABLE，在 Windows「音量合成器/应用音量」把目标 App 的输出
+//                 设为 "CABLE Input"，系统默认输出保持喇叭。
 //
 #include <windows.h>
 
@@ -21,10 +28,9 @@
 #include <thread>
 #include <vector>
 
-#include "automute/audio/audio_devices.h"
 #include "automute/audio/audio_sessions.h"
 #include "automute/audio/embedder.h"
-#include "automute/audio/loopback_capture.h"
+#include "automute/audio/process_loopback.h"
 #include "automute/audio/render_playback.h"
 #include "automute/audio/ring_buffer.h"
 
@@ -32,27 +38,28 @@ int main(int argc, char** argv) {
   SetConsoleOutputCP(CP_UTF8);
   std::string targetWav = "models/test_speakers/spkA_1272_1.wav";
   std::string model = "models/voxceleb_ECAPA512_LM.onnx";
-  int inDevice = -1, outDevice = -1; // -1 = 默认设备
+  uint32_t procPid = 0; // 目标 App 的 PID（必填，--proc 指定）
   const float THRESH = 0.5f;
 
-  // 参数解析：--list 列设备；--in/--out 选设备；以 .onnx 结尾当模型，其余当目标 wav。
+  // 参数解析：--apps 列进程；--proc 选目标 App；以 .onnx 结尾当模型，其余当目标 wav。
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
-    if (a == "--list") {
-      printRenderDevices();
-      return 0;
-    } else if (a == "--apps") {
+    if (a == "--apps") {
       printAudioSessions();
       return 0;
-    } else if (a == "--in" && i + 1 < argc) {
-      inDevice = atoi(argv[++i]);
-    } else if (a == "--out" && i + 1 < argc) {
-      outDevice = atoi(argv[++i]);
+    } else if (a == "--proc" && i + 1 < argc) {
+      procPid = (uint32_t)atoi(argv[++i]);
     } else if (a.size() > 5 && a.substr(a.size() - 5) == ".onnx") {
       model = a;
     } else {
       targetWav = a;
     }
+  }
+
+  if (procPid == 0) {
+    printf("请用 --proc <PID> 指定目标 App。\n");
+    printf("先跑 `automute_app --apps` 看哪些进程在出声及其 PID。\n");
+    return 1;
   }
 
   // 登记目标声纹
@@ -68,6 +75,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   printf("已登记目标声纹: %s\n", targetWav.c_str());
+  printf("提示：确保目标 App 已路由到虚拟声卡，否则会听到原声叠加。\n");
   fflush(stdout);
 
   SpscRingBuffer<float> rbPlay(48000 * 8); // 播放：交错立体声
@@ -77,11 +85,11 @@ int main(int argc, char** argv) {
   std::atomic<uint32_t> sampleRate{48000};
   std::atomic<float> lastSim{0.0f};
 
-  // 抓取线程：交错→播放缓冲，降混单声道→分析缓冲
+  // 抓取线程：进程 loopback → 交错写播放缓冲，降混单声道写分析缓冲
   std::thread capThread([&] {
-    LoopbackCapture cap;
-    if (!cap.initialize(inDevice)) {
-      printf("抓取初始化失败: %s\n", cap.error().c_str());
+    ProcessLoopbackCapture cap;
+    if (!cap.initialize(procPid)) {
+      printf("\n进程抓取初始化失败: %s\n", cap.error().c_str());
       running.store(false);
       return;
     }
@@ -102,11 +110,11 @@ int main(int argc, char** argv) {
         running);
   });
 
-  // 渲染线程：播放缓冲→设备，按 muted 自动掐声
+  // 渲染线程：播放缓冲→默认设备，按 muted 自动掐声
   std::thread renThread([&] {
     RenderPlayback ren;
-    if (!ren.initialize(outDevice)) {
-      printf("渲染初始化失败: %s\n", ren.error().c_str());
+    if (!ren.initialize()) {
+      printf("\n渲染初始化失败: %s\n", ren.error().c_str());
       running.store(false);
       return;
     }
@@ -138,8 +146,7 @@ int main(int argc, char** argv) {
     }
   });
 
-  printf("AutoMute 运行中：检测到目标说话即自动静音，其余照常。q 退出。\n");
-  printf("⚠️ 同设备 loopback 有回声，建议调低系统音量短测。\n\n");
+  printf("AutoMute 运行中：检测到目标说话即自动静音，其余照常。q 退出。\n\n");
   while (running.load()) {
     if (_kbhit() && (_getch() == 'q')) {
       running.store(false);

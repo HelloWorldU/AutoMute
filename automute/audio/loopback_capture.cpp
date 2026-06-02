@@ -4,7 +4,6 @@
 #include <windows.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
-#include <functiondiscoverykeys_devpkey.h>
 
 #include <vector>
 
@@ -39,7 +38,7 @@ void LoopbackCapture::fail(const std::string& where, long hr) {
   error_ = buf;
 }
 
-bool LoopbackCapture::initialize(int deviceIndex) {
+bool LoopbackCapture::initialize() {
   impl_ = new Impl();
 
   HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -57,29 +56,12 @@ bool LoopbackCapture::initialize(int deviceIndex) {
     return false;
   }
 
-  // loopback 抓的是“输出端”(eRender) 正在播的声音。
-  if (deviceIndex < 0) {
-    // 默认播放设备。
-    hr = impl_->enumerator->GetDefaultAudioEndpoint(eRender, eConsole,
-                                                    &impl_->device);
-    if (FAILED(hr)) {
-      fail("GetDefaultAudioEndpoint", hr);
-      return false;
-    }
-  } else {
-    // 指定第 deviceIndex 个活动输出设备。
-    ComPtr<IMMDeviceCollection> col;
-    hr = impl_->enumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE,
-                                               &col);
-    if (FAILED(hr)) {
-      fail("EnumAudioEndpoints", hr);
-      return false;
-    }
-    hr = col->Item((UINT)deviceIndex, &impl_->device);
-    if (FAILED(hr)) {
-      fail("Collection::Item(设备序号越界?)", hr);
-      return false;
-    }
+  // loopback 抓的是“输出端”(eRender) 正在播的声音，用默认播放设备。
+  hr = impl_->enumerator->GetDefaultAudioEndpoint(eRender, eConsole,
+                                                  &impl_->device);
+  if (FAILED(hr)) {
+    fail("GetDefaultAudioEndpoint", hr);
+    return false;
   }
 
   hr = impl_->device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,

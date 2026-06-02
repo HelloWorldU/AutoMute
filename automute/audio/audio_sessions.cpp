@@ -100,20 +100,3 @@ void printAudioSessions() {
     printf("  PID %-6u %-30s %s\n", s.pid, s.name.c_str(),
            s.active ? "[出声中]" : "[静默]");
 }
-
-bool setProcessMuted(uint32_t pid, bool muted) {
-  bool done = false;
-  forEachSession([&](IAudioSessionControl2* ctrl2, DWORD p,
-                     AudioSessionState state) {
-    (void)state;
-    if ((uint32_t)p != pid)
-      return;
-    ComPtr<ISimpleAudioVolume> vol;
-    if (SUCCEEDED(ctrl2->QueryInterface(__uuidof(ISimpleAudioVolume),
-                                        reinterpret_cast<void**>(&vol)))) {
-      if (SUCCEEDED(vol->SetMute(muted ? TRUE : FALSE, nullptr)))
-        done = true;
-    }
-  });
-  return done;
-}

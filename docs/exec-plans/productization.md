@@ -2,41 +2,48 @@
 
 > 背景见 [`../DESIGN.md`](../DESIGN.md) 的"产品化与音频路由"。
 > 核心矛盾：同设备 loopback 抓取+回放 = 数字反馈，污染识别。抓取源必须 ≠ 回放目标。
-> 选定路线：目标档2（进程 loopback，无需虚拟声卡），档1（设备选择）作地基。
+> 选定路线：进程 loopback（按进程抓取，干净、天然无反馈）。
+> ⚠️ 原以为可“无需虚拟声卡”，真机验证证伪——隔离原声仍需虚拟声卡路由（见 P2 节）。
 
 ## 步骤
 
 | # | 目标 | 产出 | 状态 |
 |---|------|------|------|
-| P1 | **设备选择** | LoopbackCapture/RenderPlayback 可指定设备（非默认）；`--list` 列设备；`--in/--out` 选设备。配 VB-CABLE 即可解决反馈 | ✅ 枚举+选择跑通（`audio_devices`），`--list/--in/--out` 已接 |
-| P2 | **进程 loopback** | 用 Win10 process-loopback API 按进程抓目标 App；静音该 App 直接输出；渲染处理后版本。无需虚拟声卡 | 🚧 spike 通过：MinGW 手补 API + 按 PID 激活/抓取成功（`process_loopback`）。剩：进程选择器、静音目标输出、接主程序 |
+| P1 | ~~**设备选择**~~ | ~~LoopbackCapture/RenderPlayback 可指定设备；`--list/--in/--out`；配 VB-CABLE 解决反馈~~ | 🗑️ 已移除（2026-06-02）：被 P2 进程 loopback 取代，`audio_devices` 删除、`initialize()` 回退无参 |
+| P2 | **进程 loopback** | 用 Win10 process-loopback API 按进程抓目标 App；静音该 App 直接输出；渲染处理后版本。无需虚拟声卡 | ✅ 全子步骤完成，接入主程序 `automute_app`（真机验证待做） |
 | P3 | 配置持久化 | 记住用户选的设备/进程/阈值（写配置文件） | ❌ |
 | P4 | enroll 的 UX | 让用户"给一段目标的声音"：录制一段 / 从流里截一段（命令行→GUI） | ❌ |
 | P5 | GUI 外壳（远期） | Qt / Tauri 界面：选 App、enroll、开关、状态显示 | ❌ |
 
-## P1 设备选择（当前）
+## P1 设备选择（已移除）
 
-- `audio_devices`：枚举活动的输出(render)设备 + 友好名，供 `--list` 展示。
-- `LoopbackCapture::initialize(deviceIndex=-1)`：-1 用默认；否则枚举集合取第 index 个。
-- `RenderPlayback::initialize(deviceIndex=-1)`：同上。
-- `automute_app`：`--list` 列设备并退出；`--in N` 抓取设备；`--out N` 渲染设备。
+P1 是当初为「抓取源≠回放目标、配虚拟声卡消反馈」铺的地基。P2 进程 loopback 落地后，
+反馈问题从根上消失（只抓目标进程、不抓自己的回放），P1 的设备选择不再需要：
+- 删除 `audio_devices.{h,cpp}`；
+- `LoopbackCapture::initialize` / `RenderPlayback::initialize` 回退为无参（只用默认设备）；
+- `automute_app` 去掉 `--list/--in/--out`，改用 `--apps` + `--proc <PID>`。
 
-**用法（配 VB-CABLE 验证无反馈）**：
-1. 装 VB-CABLE，把播放器/直播 App 输出设到 "CABLE Input"。
-2. `automute_app --list` 看设备号。
-3. `automute_app --in <CABLE Output 的号> --out <真实喇叭的号> 目标.wav`
-4. 抓的是虚拟声卡、放的是喇叭 → 无反馈 → 识别恢复正常。
-
-## P2 进程 loopback（目标架构，下一步）
+## P2 进程 loopback（当前产品形态）
 
 关键 API：`ActivateAudioInterfaceAsync` + `AUDIOCLIENT_ACTIVATION_PARAMS`
-（`PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE`）按 PID 抓取单个进程音频；
-配合按进程设音量为 0（`ISimpleAudioVolume`）静音其直接输出。
-做完即"装上选个 App 就能用"，彻底摆脱虚拟声卡。
+（`PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE`）按 PID 抓取单个进程音频。
+
+### ⚠️ 重要修正（2026-06-02 真机验证）：mute 不能用，省不掉虚拟声卡
+
+原计划"按进程设静音（`ISimpleAudioVolume::SetMute`）隔离原声 → 彻底摆脱虚拟声卡"**不成立**。
+真机实测：对正在出声的 chrome(PID 14520)，**不静音**时探针电平 -11.8dBFS 正常跳动；
+主程序里一旦 `SetMute` 同一进程，loopback **立即变 -120dB**。
+原因：**进程 loopback 抽头位于"会话静音节点"的下游**——一静音，流到抽头时已是零。
+推论：你不能用一个在执行器下游的传感器去闭环控制那个执行器。
+
+→ **隔离原声只能靠路由**：把目标 App 输出路由到虚拟声卡(用户听不到)，我们不静音地抓它、
+门控后渲染到喇叭。好处是**不需要把 P1 的 `--in/--out` 加回来**——Windows 自带「每应用输出路由」
+即可，系统默认仍是喇叭，我们渲染到默认即喇叭。
 
 子步骤：
 - ✅ P2.1 spike：MinGW 手补 `AUDIOCLIENT_ACTIVATION_PARAMS` 等缺失声明；
   `ProcessLoopbackCapture::initialize(pid)` 异步激活成功；`automute_ploop_probe <PID>` 验证抓取。
 - ✅ P2.2 进程选择器：`audio_sessions` 枚举会话列出"进程 + PID + 是否出声"；`automute_app --apps` 验证（QQMusic/chrome）。
-- ✅ P2.3 静音目标直接输出：`setProcessMuted(pid,bool)` 经 `ISimpleAudioVolume::SetMute`（实现完成，是否影响 loopback 抓取待 P2.4 同跑验证）。
-- ❌ P2.4 接主程序：进程 loopback 抓取替换设备 loopback + 静音目标直接输出；渲染到喇叭；无反馈。← 下一步
+- 🗑️ P2.3 静音目标直接输出：`setProcessMuted` 已实现并真机验证——**会同时掐死 loopback 抓取，不可用，已移除**（见上）。
+- ✅ P2.4 接主程序：`automute_app --proc <PID>` 用进程 loopback 抓目标 App → 声纹判定 → 渲染门控版到默认设备。
+  **不再静音目标 App**；隔离原声由用户把目标 App 路由到虚拟声卡完成。构建跑通，待按路由模型整链验证。

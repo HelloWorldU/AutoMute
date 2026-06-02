@@ -18,9 +18,8 @@ public:
   LoopbackCapture() = default;
   ~LoopbackCapture();
 
-  // 初始化 COM、拿输出设备、以 loopback 模式打开。失败返回 false 并填 error()。
-  // deviceIndex: -1 用默认设备；>=0 用枚举列表里第 index 个（见 audio_devices）。
-  bool initialize(int deviceIndex = -1);
+  // 初始化 COM、拿默认输出设备、以 loopback 模式打开。失败返回 false 并填 error()。
+  bool initialize();
 
   // 阻塞式抓取循环，直到 keepRunning 变 false。每抓到一块就调用 cb。
   void run(const DataCallback& cb, std::atomic<bool>& keepRunning);

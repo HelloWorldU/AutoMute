@@ -38,10 +38,9 @@
 | 实时音频管线（环形缓冲 / 无锁队列 / 低延迟线程） | ✅ | 无锁 SPSC 环形缓冲 + 抓取/渲染双线程；闭环稳态 ~20ms | `automute/audio/ring_buffer.h`, `automute/audio/render_playback.cpp`, `automute/passthrough_main.cpp` |
 | 静音门控（gate） | ✅ | 手动开关（m 键），抓取端写静音；M2.5 接声纹判定自动触发 | `automute/passthrough_main.cpp` |
 | 实时声纹检测 | ✅ | 抓取+分析双线程，1.5s 窗 enroll 比对，打印是否目标在说话 | `automute/detect_main.cpp` |
-| **主程序：自动定向静音** | ✅ | 抓取+渲染(带gate)+分析三线程，检测目标→自动静音；核心闭环 | `automute/app_main.cpp` |
-| 设备选择（产品化 P1） | ✅ | 枚举输出设备 + 按序号选抓/放（`--list/--in/--out`）；配虚拟声卡消除反馈的地基 | `automute/audio/audio_devices.{h,cpp}` |
-| 进程 loopback 抓取（P2.1） | ✅ | 按 PID 抓单个进程音频（MinGW 手补 API）；天然无反馈 | `automute/audio/process_loopback.{h,cpp}` |
-| 进程选择 + 静音（P2.2/2.3） | ✅ | 枚举出声进程（`--apps`）+ 按 PID 静音其直接输出 | `automute/audio/audio_sessions.{h,cpp}` |
+| **主程序：进程级定向静音（P2.4）** | ✅ | `--proc <PID>` 选目标 App → 进程 loopback 抓取 → 渲染门控版到默认设备 → 声纹判定自动掐声；进程+渲染+分析三线程。隔离原声靠把目标 App 路由到虚拟声卡（不再用 mute，见下） | `automute/app_main.cpp` |
+| 进程 loopback 抓取（P2.1） | ✅ 真机验证 | 按 PID 抓单个进程音频（MinGW 手补 API）；探针 chrome 实测 -11.8dBFS 正常跳动 | `automute/audio/process_loopback.{h,cpp}` |
+| 进程选择枚举（P2.2） | ✅ | 枚举出声进程（`--apps`）。P2.3 的 `setProcessMuted` 已移除：真机验证 mute 会同时掐死 loopback 抓取 | `automute/audio/audio_sessions.{h,cpp}` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
 | 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/feat_probe.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
@@ -52,5 +51,5 @@
 
 ---
 
-*下一步：产品化 P2（进程 loopback，无需虚拟声卡）；或 M3 调优（压短窗口/VAD/阈值）。
-P1 设备选择已完成 —— 用户装 VB-CABLE 后即可 `--in <虚拟声卡> --out <喇叭>` 消除反馈、验证端到端自动掐声。详见 [`exec-plans/productization.md`](exec-plans/productization.md)。*
+*产品形态已切到 P2（进程 loopback，无需虚拟声卡）。P1 设备选择已移除（被 P2 取代）。
+下一步：真机验证（`--proc` 抓某 App、静音其直接输出后 loopback 是否仍抓得到声音）；或 M3 调优（压短窗口/VAD/阈值）。详见 [`exec-plans/productization.md`](exec-plans/productization.md)。*
