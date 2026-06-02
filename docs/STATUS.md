@@ -35,15 +35,15 @@
 | 模块 | 状态 | 说明 | 关键文件 |
 |------|------|------|----------|
 | 音频抓取（WASAPI loopback） | ✅ | 已验证：电平条随系统声音实时跳动，48kHz/2ch float | `automute/audio/loopback_capture.cpp` |
-| 实时音频管线（环形缓冲 / 无锁队列 / 低延迟线程） | ✅ | 无锁 SPSC 环形缓冲 + 抓取/渲染双线程；闭环稳态 ~20ms | `automute/audio/ring_buffer.h`, `automute/audio/render_playback.cpp`, `automute/passthrough_main.cpp` |
-| 静音门控（gate） | ✅ | 手动开关（m 键），抓取端写静音；M2.5 接声纹判定自动触发 | `automute/passthrough_main.cpp` |
+| 实时音频管线（环形缓冲 / 无锁队列 / 低延迟线程） | ✅ | 无锁 SPSC 环形缓冲 + 抓取/渲染双线程；闭环稳态 ~20ms | `automute/audio/ring_buffer.h`, `automute/audio/render_playback.cpp`, `automute/app_main.cpp` |
+| 静音门控（gate） | ✅ | 渲染端按 muted 标志输出静音，由声纹判定自动触发 | `automute/audio/render_playback.cpp`, `automute/app_main.cpp` |
 | 实时声纹检测 | ✅ | 抓取+分析双线程，1.5s 窗 enroll 比对，打印是否目标在说话 | `automute/detect_main.cpp` |
 | **主程序：进程级定向静音（P2.4）** | ✅ **真机闭环** | `--proc <PID>` 选目标 App → 进程 loopback 抓取 → 渲染门控版到默认设备 → 声纹判定自动掐声；进程+渲染+分析三线程。隔离原声靠把目标 App 路由到虚拟声卡。真机验证（chrome→CABLE）：放目标A 相似度~0.7→🔇喇叭静音，放异人B ~0.1→🔊放行 | `automute/app_main.cpp` |
 | 进程 loopback 抓取（P2.1） | ✅ 真机验证 | 按 PID 抓单个进程音频（MinGW 手补 API）；探针 chrome 实测 -11.8dBFS 正常跳动 | `automute/audio/process_loopback.{h,cpp}` |
 | 进程选择枚举（P2.2） | ✅ | `--apps` 扫描【所有活动输出设备】列出会话（PID+进程名+是否出声+输出到哪个设备），路由到虚拟声卡的进程也能找到。P2.3 的 `setProcessMuted` 已移除：真机验证 mute 会同时掐死 loopback 抓取 | `automute/audio/audio_sessions.{h,cpp}` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
-| 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/feat_probe.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
+| 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/audio/embedder.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
 | 声纹推理（ONNX Runtime C++） | ✅ | 全管线通：wav→fbank→ECAPA 模型→192 维 embedding（ORT 1.26，MinGW） | `automute/audio/embedder.cpp`, `third_party/onnxruntime/` |
 | 声纹提取器 Embedder（可复用） | ✅ | 封装 wav→声纹 + 余弦相似度；验证同人 0.835/异人 0.07 | `automute/audio/embedder.{h,cpp}`, `automute/sim_probe.cpp` |
 | 重采样 48k→16k（抗混叠 FIR） | ✅ | Embedder 内置，非 16k 自动降采样；48k 立体声链路验证识别力无损 | `automute/audio/resampler.{h,cpp}` |
