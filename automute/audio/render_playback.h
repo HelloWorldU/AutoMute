@@ -22,7 +22,9 @@ public:
 
   // 阻塞式渲染循环：被事件唤醒 → 从 src 取数据填进设备缓冲 → 直到 keepRunning
   // 变 false。 src 不够时(欠载/underrun)用静音补齐，避免爆音。
-  void run(SpscRingBuffer<float>& src, std::atomic<bool>& keepRunning);
+  // muted 非空且为 true 时输出静音（声纹判定驱动的自动掐声）。
+  void run(SpscRingBuffer<float>& src, std::atomic<bool>& keepRunning,
+           std::atomic<bool>* muted = nullptr);
 
   uint32_t sampleRate() const { return sampleRate_; }
   uint32_t channels() const { return channels_; }

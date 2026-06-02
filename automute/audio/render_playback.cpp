@@ -121,7 +121,8 @@ bool RenderPlayback::initialize() {
 }
 
 void RenderPlayback::run(SpscRingBuffer<float>& src,
-                         std::atomic<bool>& keepRunning) {
+                         std::atomic<bool>& keepRunning,
+                         std::atomic<bool>* muted) {
   const uint32_t ch = channels_;
 
   // 先把整个设备缓冲填一遍静音，确保启动平滑。
@@ -163,6 +164,10 @@ void RenderPlayback::run(SpscRingBuffer<float>& src,
     const size_t got = src.read(chunk.data(), need);
     for (size_t i = got; i < need; ++i)
       chunk[i] = 0.0f;
+
+    // 自动掐声：判定为目标在说话时，本块输出静音。
+    if (muted && muted->load(std::memory_order_relaxed))
+      std::memset(chunk.data(), 0, need * sizeof(float));
 
     std::memcpy(data, chunk.data(), need * sizeof(float));
     impl_->render->ReleaseBuffer(framesToWrite, 0);

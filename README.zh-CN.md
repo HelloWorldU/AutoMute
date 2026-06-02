@@ -69,7 +69,13 @@ python scripts\make-test-speakers.py
 
 # 实时：登记一个目标声音，再播放音频 —— 打印目标是否在说话
 .\build\bin\automute_detect.exe models\test_speakers\spkA_1272_1.wav
+
+# 主程序：登记目标 → 从系统输出里自动静音那个人的声音
+.\build\bin\automute_app.exe models\test_speakers\spkA_1272_1.wav
 ```
+
+> ⚠️ 抓取和回放同一个默认设备会产生回声反馈 —— 真正使用时应把来源 App 的音频
+> 路由到虚拟声卡（见 `docs/DESIGN.md`）。
 
 ## 技术栈
 

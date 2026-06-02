@@ -75,7 +75,13 @@ python scripts\make-test-speakers.py
 
 # Live: enroll a target voice, then play audio — prints whether the target is speaking
 .\build\bin\automute_detect.exe models\test_speakers\spkA_1272_1.wav
+
+# THE APP: enroll a target → it auto-mutes that voice from the system output
+.\build\bin\automute_app.exe models\test_speakers\spkA_1272_1.wav
 ```
+
+> ⚠️ Capturing and rendering the same default device causes echo feedback — for a
+> real setup, route the source app's audio through a virtual cable (see `docs/DESIGN.md`).
 
 ## Tech stack
 
