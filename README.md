@@ -63,6 +63,20 @@ cmake --build build
 
 Play any sound — the level meter should react, confirming the capture path works.
 
+### Try speaker ID (optional)
+
+```powershell
+# Regenerate test speech samples (same speaker ×2 + different speaker ×1)
+python -m pip install datasets soundfile scipy
+python scripts\make-test-speakers.py
+
+# Offline: cosine-similarity matrix (same speaker should score high, different low)
+.\build\bin\automute_sim_probe.exe
+
+# Live: enroll a target voice, then play audio — prints whether the target is speaking
+.\build\bin\automute_detect.exe models\test_speakers\spkA_1272_1.wav
+```
+
 ## Tech stack
 
 - **C++20** — real-time audio engine written from scratch (ring buffer / lock-free queue / low-latency threads)

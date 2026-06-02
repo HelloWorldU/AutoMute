@@ -57,6 +57,20 @@ cmake --build build
 
 播放任意声音，能看到电平条随之跳动，即说明抓取链路正常。
 
+### 试试声纹识别（可选）
+
+```powershell
+# 生成测试语音样本（同人×2 + 异人×1）
+python -m pip install datasets soundfile scipy
+python scripts\make-test-speakers.py
+
+# 离线：余弦相似度矩阵（同人应高、异人应低）
+.\build\bin\automute_sim_probe.exe
+
+# 实时：登记一个目标声音，再播放音频 —— 打印目标是否在说话
+.\build\bin\automute_detect.exe models\test_speakers\spkA_1272_1.wav
+```
+
 ## 技术栈
 
 - **C++20** — 实时音频引擎自写（环形缓冲 / 无锁队列 / 低延迟线程）
