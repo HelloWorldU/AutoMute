@@ -42,6 +42,7 @@
 | 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/feat_probe.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
 | 声纹推理（ONNX Runtime C++） | ✅ | 全管线通：wav→fbank→ECAPA 模型→192 维 embedding（ORT 1.26，MinGW） | `automute/audio/embedder.cpp`, `third_party/onnxruntime/` |
 | 声纹提取器 Embedder（可复用） | ✅ | 封装 wav→声纹 + 余弦相似度；验证同人 0.835/异人 0.07 | `automute/audio/embedder.{h,cpp}`, `automute/sim_probe.cpp` |
+| 重采样 48k→16k（抗混叠 FIR） | ✅ | Embedder 内置，非 16k 自动降采样；48k 立体声链路验证识别力无损 | `automute/audio/resampler.{h,cpp}` |
 | VAD + 阈值调参 | ❌ | M3 | — |
 
 ---

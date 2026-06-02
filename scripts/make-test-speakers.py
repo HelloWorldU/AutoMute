@@ -39,3 +39,17 @@ for r in dsB:
         break
 
 print("测试样本已生成到 models/test_speakers/")
+
+# 额外生成 48kHz 立体声版（模拟 WASAPI 抓到的格式），用于验证重采样链路。
+import glob, numpy as np
+from scipy.signal import resample_poly
+os.makedirs("models/test_speakers_48k", exist_ok=True)
+for f in glob.glob("models/test_speakers/*.wav"):
+    data, sr = sf.read(f)
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    up = resample_poly(data, 48000, sr)
+    stereo = np.stack([up, up], axis=1)
+    sf.write("models/test_speakers_48k/" + os.path.basename(f), stereo, 48000,
+             subtype="PCM_16")
+print("48k 立体声版已生成到 models/test_speakers_48k/")

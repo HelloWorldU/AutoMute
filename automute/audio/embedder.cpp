@@ -1,4 +1,5 @@
 #include "automute/audio/embedder.h"
+#include "automute/audio/resampler.h"
 #include "automute/audio/wav_io.h"
 
 #include <cmath>
@@ -44,6 +45,15 @@ bool Embedder::embed(const std::vector<float>& mono, uint32_t sampleRate,
     return false;
   }
 
+  // 0) 重采样到 16kHz（模型要求）。WASAPI 给的是 48k，必须先降采样。
+  std::vector<float> resampled;
+  const std::vector<float>* sig = &mono;
+  if (sampleRate != 16000) {
+    resampleTo16k(mono, sampleRate, resampled);
+    sig = &resampled;
+    sampleRate = 16000;
+  }
+
   // 1) fbank（kaldi 风格，80 维）
   knf::FbankOptions opts;
   opts.frame_opts.samp_freq = (float)sampleRate;
@@ -53,9 +63,10 @@ bool Embedder::embed(const std::vector<float>& mono, uint32_t sampleRate,
   opts.mel_opts.num_bins = 80;
   knf::OnlineFbank fbank(opts);
 
-  std::vector<float> scaled(mono.size());
-  for (size_t i = 0; i < mono.size(); ++i)
-    scaled[i] = mono[i] * 32768.0f; // kaldi 约定 int16 量级
+  const std::vector<float>& s = *sig;
+  std::vector<float> scaled(s.size());
+  for (size_t i = 0; i < s.size(); ++i)
+    scaled[i] = s[i] * 32768.0f; // kaldi 约定 int16 量级
   fbank.AcceptWaveform((float)sampleRate, scaled.data(), (int32_t)scaled.size());
   fbank.InputFinished();
 

@@ -49,7 +49,8 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
   add_subdirectory(${KNF_DIR} kaldi-native-fbank-build)
 
   # 声纹提取的共享源码/依赖（feat_probe 与 sim_probe 都用）。
-  set(EMBED_SRCS automute/audio/embedder.cpp automute/audio/wav_io.cpp)
+  set(EMBED_SRCS automute/audio/embedder.cpp automute/audio/wav_io.cpp
+                 automute/audio/resampler.cpp)
   set(EMBED_INCS
       ${CMAKE_SOURCE_DIR}/third_party/dr_libs
       ${ORT_DIR}/include
