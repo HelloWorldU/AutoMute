@@ -29,6 +29,11 @@ add_executable(automute_passthrough
 )
 target_link_libraries(automute_passthrough PRIVATE ${WASAPI_LIBS})
 
+# P2 spike: 进程级 loopback 探针（不依赖 ORT/knf）。
+add_executable(automute_ploop_probe
+    automute/ploop_probe.cpp automute/audio/process_loopback.cpp)
+target_link_libraries(automute_ploop_probe PRIVATE ${WASAPI_LIBS} mmdevapi)
+
 # M2.1: ONNX Runtime 探针 —— 验证 ORT 能在 MinGW+CMake 下链接并初始化。
 set(ORT_DIR ${CMAKE_SOURCE_DIR}/third_party/onnxruntime)
 if(EXISTS ${ORT_DIR})

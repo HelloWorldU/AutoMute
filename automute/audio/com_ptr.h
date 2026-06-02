@@ -42,6 +42,12 @@ public:
     }
   }
 
+  // 接管一个【已经 AddRef 过】的裸指针（不再额外 AddRef）。
+  void attach(T* p) {
+    reset();
+    ptr_ = p;
+  }
+
 private:
   T* ptr_ = nullptr;
 };

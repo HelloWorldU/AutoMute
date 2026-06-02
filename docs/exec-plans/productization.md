@@ -9,7 +9,7 @@
 | # | 目标 | 产出 | 状态 |
 |---|------|------|------|
 | P1 | **设备选择** | LoopbackCapture/RenderPlayback 可指定设备（非默认）；`--list` 列设备；`--in/--out` 选设备。配 VB-CABLE 即可解决反馈 | ✅ 枚举+选择跑通（`audio_devices`），`--list/--in/--out` 已接 |
-| P2 | **进程 loopback** | 用 Win10 process-loopback API 按进程抓目标 App；静音该 App 直接输出；渲染处理后版本。无需虚拟声卡 | ❌ |
+| P2 | **进程 loopback** | 用 Win10 process-loopback API 按进程抓目标 App；静音该 App 直接输出；渲染处理后版本。无需虚拟声卡 | 🚧 spike 通过：MinGW 手补 API + 按 PID 激活/抓取成功（`process_loopback`）。剩：进程选择器、静音目标输出、接主程序 |
 | P3 | 配置持久化 | 记住用户选的设备/进程/阈值（写配置文件） | ❌ |
 | P4 | enroll 的 UX | 让用户"给一段目标的声音"：录制一段 / 从流里截一段（命令行→GUI） | ❌ |
 | P5 | GUI 外壳（远期） | Qt / Tauri 界面：选 App、enroll、开关、状态显示 | ❌ |
@@ -33,3 +33,10 @@
 （`PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE`）按 PID 抓取单个进程音频；
 配合按进程设音量为 0（`ISimpleAudioVolume`）静音其直接输出。
 做完即"装上选个 App 就能用"，彻底摆脱虚拟声卡。
+
+子步骤：
+- ✅ P2.1 spike：MinGW 手补 `AUDIOCLIENT_ACTIVATION_PARAMS` 等缺失声明；
+  `ProcessLoopbackCapture::initialize(pid)` 异步激活成功；`automute_ploop_probe <PID>` 验证抓取。
+- ❌ P2.2 进程选择器：枚举音频会话（`IAudioSessionManager2`）列出"正在出声的进程 + PID + 名字"供选。
+- ❌ P2.3 静音目标直接输出：`ISimpleAudioVolume` 把目标进程会话设静音（注意验证是否影响 loopback 抓取）。
+- ❌ P2.4 接主程序：进程 loopback 抓取替换设备 loopback；渲染到喇叭；无反馈。
