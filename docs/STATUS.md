@@ -16,7 +16,7 @@
 | # | 目标 | 状态 |
 |---|------|------|
 | **M1** | 打通 C++ 实时音频脊梁：WASAPI loopback 抓系统声音 → 原样回放，测出端到端延迟，加手动静音开关 | ✅ 闭环跑通，管线缓冲稳定 ~20ms |
-| M2 | 接入声纹识别：录入目标样本 → ONNX 推理 embedding → 实时比对 → 命中即掐 | ✅ 全子步骤完成，核心闭环建成（自动掐声待真机验），详见 [`exec-plans/m2-speaker-id.md`](exec-plans/m2-speaker-id.md) |
+| M2 | 接入声纹识别：录入目标样本 → ONNX 推理 embedding → 实时比对 → 命中即掐 | ✅ 全子步骤完成，自动掐声真机验证通过（见 P2.4），详见 [`exec-plans/m2-speaker-id.md`](exec-plans/m2-speaker-id.md) |
 | M3 | 调优：压短判断窗口、VAD 抗噪、阈值调参，让开头泄漏收窄 | ❌ ← 下一步 |
 
 ## M2 子步骤
@@ -38,9 +38,9 @@
 | 实时音频管线（环形缓冲 / 无锁队列 / 低延迟线程） | ✅ | 无锁 SPSC 环形缓冲 + 抓取/渲染双线程；闭环稳态 ~20ms | `automute/audio/ring_buffer.h`, `automute/audio/render_playback.cpp`, `automute/passthrough_main.cpp` |
 | 静音门控（gate） | ✅ | 手动开关（m 键），抓取端写静音；M2.5 接声纹判定自动触发 | `automute/passthrough_main.cpp` |
 | 实时声纹检测 | ✅ | 抓取+分析双线程，1.5s 窗 enroll 比对，打印是否目标在说话 | `automute/detect_main.cpp` |
-| **主程序：进程级定向静音（P2.4）** | ✅ | `--proc <PID>` 选目标 App → 进程 loopback 抓取 → 渲染门控版到默认设备 → 声纹判定自动掐声；进程+渲染+分析三线程。隔离原声靠把目标 App 路由到虚拟声卡（不再用 mute，见下） | `automute/app_main.cpp` |
+| **主程序：进程级定向静音（P2.4）** | ✅ **真机闭环** | `--proc <PID>` 选目标 App → 进程 loopback 抓取 → 渲染门控版到默认设备 → 声纹判定自动掐声；进程+渲染+分析三线程。隔离原声靠把目标 App 路由到虚拟声卡。真机验证（chrome→CABLE）：放目标A 相似度~0.7→🔇喇叭静音，放异人B ~0.1→🔊放行 | `automute/app_main.cpp` |
 | 进程 loopback 抓取（P2.1） | ✅ 真机验证 | 按 PID 抓单个进程音频（MinGW 手补 API）；探针 chrome 实测 -11.8dBFS 正常跳动 | `automute/audio/process_loopback.{h,cpp}` |
-| 进程选择枚举（P2.2） | ✅ | 枚举出声进程（`--apps`）。P2.3 的 `setProcessMuted` 已移除：真机验证 mute 会同时掐死 loopback 抓取 | `automute/audio/audio_sessions.{h,cpp}` |
+| 进程选择枚举（P2.2） | ✅ | `--apps` 扫描【所有活动输出设备】列出会话（PID+进程名+是否出声+输出到哪个设备），路由到虚拟声卡的进程也能找到。P2.3 的 `setProcessMuted` 已移除：真机验证 mute 会同时掐死 loopback 抓取 | `automute/audio/audio_sessions.{h,cpp}` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
 | 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/feat_probe.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
@@ -51,5 +51,5 @@
 
 ---
 
-*产品形态已切到 P2（进程 loopback，无需虚拟声卡）。P1 设备选择已移除（被 P2 取代）。
-下一步：真机验证（`--proc` 抓某 App、静音其直接输出后 loopback 是否仍抓得到声音）；或 M3 调优（压短窗口/VAD/阈值）。详见 [`exec-plans/productization.md`](exec-plans/productization.md)。*
+*产品形态 = P2 进程 loopback + 虚拟声卡路由隔离原声（P1 设备选择已移除）。P2.4 真机端到端闭环已验证通过。
+下一步：M3 调优（压短 1.5s 窗口 / 加 VAD / 调阈值，收窄目标开口头 200~400ms 泄漏）；或产品化 P3+（配置持久化、enroll UX、GUI）。详见 [`exec-plans/productization.md`](exec-plans/productization.md)。*
