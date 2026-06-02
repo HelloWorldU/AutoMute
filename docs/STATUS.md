@@ -27,8 +27,8 @@
 | M2.2a | 加载真实模型 + 假数据跑通推理，确认 I/O 规格 | ✅ feats[B,T,80] → embs[B,192]，假输入推理成功 |
 | M2.2b | 写 fbank 特征提取，喂真 wav → 得到真 embedding | ✅ wav→fbank(298×80)→模型→192维声纹，全管线通 |
 | M2.3 | 用真实语音验证可区分性 + 封装 Embedder | ✅ 同人 0.835 / 异人 0.03~0.10，区分度极大，方案成立 |
-| M2.4 | 实时分析线程：抓取端分流音频到第二个环形缓冲 → 攒窗口 → 推理 → 余弦比对目标声纹 → 出判定（阈值~0.5）| ❌ ← 下一步 |
-| M2.5 | 接线：判定结果驱动 gate（替换手动 m 键，实现自动掐声） | ❌ |
+| M2.4 | 实时分析线程：抓取 → 分析 ring buffer → 攒窗(1.5s) → Embedder → 余弦比对目标 → 判定(阈值 0.5) | ✅ 程序构建/enroll/双线程跑通；离线管线全验证；真机实时检测待用户播放目标语音确认 |
+| M2.5 | 接线：判定结果驱动 gate（替换手动 m 键，实现自动掐声） | ❌ ← 下一步 |
 
 ## 核心模块
 
@@ -36,7 +36,8 @@
 |------|------|------|----------|
 | 音频抓取（WASAPI loopback） | ✅ | 已验证：电平条随系统声音实时跳动，48kHz/2ch float | `automute/audio/loopback_capture.cpp` |
 | 实时音频管线（环形缓冲 / 无锁队列 / 低延迟线程） | ✅ | 无锁 SPSC 环形缓冲 + 抓取/渲染双线程；闭环稳态 ~20ms | `automute/audio/ring_buffer.h`, `automute/audio/render_playback.cpp`, `automute/passthrough_main.cpp` |
-| 静音门控（gate） | ✅ | 手动开关（m 键），抓取端写静音；M2 接声纹自动触发 | `automute/passthrough_main.cpp` |
+| 静音门控（gate） | ✅ | 手动开关（m 键），抓取端写静音；M2.5 接声纹判定自动触发 | `automute/passthrough_main.cpp` |
+| 实时声纹检测 | ✅ | 抓取+分析双线程，1.5s 窗 enroll 比对，打印是否目标在说话 | `automute/detect_main.cpp` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
 | 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/feat_probe.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
@@ -47,4 +48,4 @@
 
 ---
 
-*下一步：M2.4 — 实时分析线程。抓取端把音频分流到第二个 ring buffer；分析线程攒一窗（~1~2s）→ Embedder 算声纹 → 与"目标声纹"(预先 enroll 的一段 wav) 算余弦 → 超阈值(~0.5)判定"是他"。先在 passthrough 里打印判定，再 M2.5 接 gate 自动掐。*
+*下一步：M2.5 — 把 detect 的实时判定接进 passthrough 的 gate：检测到目标在说话就自动写静音（替换手动 m 键），完成"自动定向静音"闭环。先等用户真机验证 M2.4 检测准确度。*

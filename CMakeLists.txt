@@ -67,8 +67,14 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
   target_include_directories(automute_sim_probe PRIVATE ${EMBED_INCS})
   target_link_libraries(automute_sim_probe PRIVATE ${EMBED_LIBS})
 
-  # 两个都要 onnxruntime.dll 在 exe 旁边。
-  foreach(t automute_feat_probe automute_sim_probe)
+  # detect：实时声纹检测（抓取 + 分析线程，M2.4）
+  add_executable(automute_detect
+      automute/detect_main.cpp ${EMBED_SRCS} automute/audio/loopback_capture.cpp)
+  target_include_directories(automute_detect PRIVATE ${EMBED_INCS})
+  target_link_libraries(automute_detect PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS})
+
+  # 都要 onnxruntime.dll 在 exe 旁边。
+  foreach(t automute_feat_probe automute_sim_probe automute_detect)
     add_custom_command(TARGET ${t} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:${t}>)
