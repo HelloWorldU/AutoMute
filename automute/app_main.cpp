@@ -18,8 +18,8 @@
 //     1..9     切换第 N 个目标的静音开关（开了才会掐这个人）
 //     q        退出
 //
-//   准备(一次性): 装 VB-CABLE，在 Windows「音量合成器/应用音量」把目标 App 的输出
-//                 设为 "CABLE Input"，系统默认输出保持喇叭。
+//   准备(一次性): 装 VB-CABLE。M4.3c 起【程序自动路由】目标 App 到 CABLE、退出还原，
+//                 不用再手动去「音量合成器」设；自动路由不可用时回退引导手动。
 //
 #include <windows.h>
 
@@ -30,11 +30,23 @@
 #include <string>
 #include <thread>
 
+#include "automute/audio/app_router.h"
 #include "automute/audio/audio_sessions.h"
 #include "automute/engine.h"
 
+// Ctrl+C / 关闭窗口时也把路由还原（避免目标 App 被永久改到 CABLE）。
+// 强杀/崩溃这条来不及跑，靠下次启动 recoverStaleRoutes() 据 journal 兜底。
+static approuter::AppRouter* g_router = nullptr;
+static BOOL WINAPI consoleHandler(DWORD) {
+  if (g_router)
+    g_router->restore();
+  return FALSE; // 交还默认处理，进程照常终止
+}
+
 int main(int argc, char** argv) {
   SetConsoleOutputCP(CP_UTF8);
+  // 启动先清理上次非正常退出可能残留的路由（崩溃/强杀兜底）。
+  approuter::AppRouter::recoverStaleRoutes();
   AutoMuteEngine::Config cfg;
   uint32_t procPid = 0; // 目标 App 的 PID（必填，--proc 指定）
 
@@ -74,7 +86,28 @@ int main(int argc, char** argv) {
   printf("已登记目标声纹: %s\n", cfg.targetWav.c_str());
   printf("调参：窗 %.2fs / 跳步 %.2fs / 阈值 %.2f\n", cfg.windowSec, cfg.hopSec,
          cfg.threshold);
-  printf("提示：确保目标 App 已路由到虚拟声卡，否则会听到原声叠加。\n");
+
+  // ── M4.3c：自动把目标 App 路由到 VB-CABLE（退出/Ctrl+C 自动还原）──
+  // 失败逐级回退到「引导手动」，整条链任何一环不成都不影响程序继续跑。
+  approuter::AppRouter router;
+  g_router = &router;
+  SetConsoleCtrlHandler(consoleHandler, TRUE);
+  if (!router.available()) {
+    printf("⚠️ 自动路由不可用（本 Windows 版本不支持隐藏接口）。\n"
+           "   请手动在「音量合成器/应用音量」把目标 App 输出设为 CABLE Input。\n");
+  } else {
+    std::string cableId;
+    if (!approuter::cableInstalled(cableId)) {
+      printf("⚠️ 未检测到 VB-CABLE，无法自动路由。\n"
+             "   装一下：https://vb-audio.com/Cable/ ，或先手动路由。\n");
+    } else if (router.route(procPid, cableId, err)) {
+      printf("✅ 已自动把目标 App 路由到 VB-CABLE，退出时自动还原。\n");
+    } else {
+      printf("⚠️ 自动路由失败：%s\n"
+             "   请手动在「音量合成器」把目标 App 输出设为 CABLE Input。\n",
+             err.c_str());
+    }
+  }
 
   if (!engine.start(procPid, err)) {
     printf("%s\n", err.c_str());
@@ -132,8 +165,10 @@ int main(int argc, char** argv) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   engine.stop();
+  router.restore(); // 还原目标 App 的输出设备（幂等；析构也会兜一次）
+  g_router = nullptr;
   if (!engine.error().empty())
     printf("\n%s\n", engine.error().c_str());
-  printf("\n已停止。\n");
+  printf("\n已停止，已还原设备路由。\n");
   return 0;
 }
