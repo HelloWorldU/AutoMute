@@ -30,7 +30,7 @@
 | M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦）：`prepare(cfg)`→`start(pid)`→轮询 `similarity()/muted()`→`stop()`，引擎不做 UI 输出。CLI 改薄前端 | ✅ `automute/engine.{h,cpp}`，行为不变，冒烟通过 |
 | M4.2 | 引擎扩展：单目标→多目标（按 N 设计，v1=1）+ 暴露"最近 N 秒快照"API（在线抓取登记的地基） | ❌ ← 下一步 |
 | M4.3 | 路由模块：未公开 `IAudioPolicyConfig` COM 自动路由/还原每应用输出 + VB-CABLE 检测/安装 + 失败兑底引导 | ❌ |
-| M4.4 | GUI 外壳（ImGui+GLFW+OpenGL3）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | ❌ |
+| M4.4 | GUI 外壳（C++ webview / WebView2，前端 HTML/CSS/JS）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | ❌ |
 
 ## M3 子步骤
 

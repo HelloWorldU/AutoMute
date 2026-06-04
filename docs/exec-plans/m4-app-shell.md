@@ -15,7 +15,7 @@ GUI 驱动已有的 [`AutoMuteEngine`](../../automute/engine.h)（M4.1 已抽出
 |--------|------|--------|
 | **登记/命名一个人** | **边看边圈（在线抓取）** | 直播里人事先不知道；点「抓取当前说话人」→ 取最近 ~3s → 算声纹命名。踩中原始设计「轮流说话不重叠」前提，抓取片段天然单人 |
 | **路由（设置+还原）** | **程序自动路由 + 兑底引导** | 每应用路由在 Win 持久 → 不还原则关 app 后目标 App 变哑巴，故"退出还原"必须；用未公开 `IAudioPolicyConfig` COM，失败回退引导手动 |
-| **GUI 框架** | **Dear ImGui + GLFW + OpenGL3** | 纯 C++、轻、适合带仪表盘的工具、直接糊在现有 C++ 引擎上；比 Qt 轻 |
+| **GUI 框架** | **C++ webview（嵌入 WebView2）** | 后台仍 C++（直接调引擎）、前端 HTML/CSS/JS 颜值天花板最高；比 Tauri 少一层 Rust。用 `webview/webview` 小库包 WebView2 |
 | **v1 范围** | **垂直切片：全链路先单人** | 一条龙跑通（GUI↔引擎↔路由↔登记），多人只是"列表变 N"，紧接着扩。风险最低 |
 
 ## v1 范围（单人全链路）
@@ -31,13 +31,13 @@ GUI 驱动已有的 [`AutoMuteEngine`](../../automute/engine.h)（M4.1 已抽出
 
 - **引擎扩展**：① 暴露"最近 N 秒快照"（在线抓取用）；② 单目标→**多目标**（比对一组命名声纹，任一"开了静音"的人命中就掐）——v1 列表长度=1，但按 N 设计。
 - **路由模块**：未公开 `IAudioPolicyConfig` COM（MinGW 手补声明）设置/还原每应用输出；+ VB-CABLE 检测与安装拉起；+ 失败兑底引导。
-- **GUI 外壳**：Dear ImGui + GLFW + OpenGL3。
+- **GUI 外壳**：C++ 应用嵌入 WebView2（`webview/webview` 库）；前端 HTML/CSS/JS；JS↔C++ 绑定暴露 listApps/start/capture/setMuted，前端轮询 similarity/muted 画仪表。
 
 ## 已知约束与风险（已摊开）
 
 - 🧱 **~1.5s 识别地板**：认人/切换仍有 ~1~1.5s 头部泄漏，调参消不掉（M3.4 实测）。
 - ⚠️ **路由 COM 未公开**：可能随 Win 版本变 → 必须有"引导手动"兑底。
-- 📦 **GUI 加新依赖**：GLFW/OpenGL，首次引入图形/窗口构建。
+- 📦 **WebView2 + MinGW（早验）**：WebView2 SDK 为 MSVC 设计，MinGW 下经 `webview/webview` 接入需先验通构建（类比 ORT / 进程 loopback 的 MinGW 适配）；运行时依赖 WebView2 Runtime（Win10/11 多已预装，否则引导安装）。
 - 🎙️ **抓取假设轮流说话不重叠**（与原始设计一致）；抓取片段需 ~1.5-3s 单人语音才准。
 
 ## 不在 v1（→ v1.1 / v2）
@@ -53,10 +53,12 @@ GUI 驱动已有的 [`AutoMuteEngine`](../../automute/engine.h)（M4.1 已抽出
 | M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦） | ✅ 已完成 |
 | M4.2 | 引擎扩展：多目标（按 N 设计，v1=1）+ "最近 N 秒"快照 API | ❌ ← 下一步 |
 | M4.3 | 路由模块：自动路由/还原（未公开 COM）+ VB-CABLE 检测/安装 + 兑底引导 | ❌ |
-| M4.4 | GUI 外壳：ImGui+GLFW+OpenGL3，把选 App/抓取命名/静音开关/仪表/退出还原串起来 | ❌ |
+| M4.4 | GUI 外壳（C++ webview / WebView2）：前端 HTML/CSS/JS，把选 App/抓取命名/静音开关/仪表/退出还原串起来 | ❌ |
 
 ## 待深入对齐（动手前再钉）
 
+- M4.4 前端栈：纯 HTML/CSS/JS（无构建步骤、轻）vs 框架（Svelte/React，需 Node 构建）——倾向先纯前端。
+- M4.4 JS↔C++ 绑定模型 + 实时状态推送（前端 setInterval 轮询 getter / C++ 定时 eval 推）。
 - M4.4 UI 细节：主窗口布局、控件、交互文案、相似度仪表的呈现。
 - M4.2 快照 API 形态：环形缓冲里"取最近 N 秒"的接口签名、N 取多少。
 - M4.3 路由：`IAudioPolicyConfig` 的具体 CLSID/方法、还原时机（仅退出 vs 切换 App 时）。
