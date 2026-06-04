@@ -50,12 +50,14 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
   target_link_libraries(automute_detect PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS})
 
   # automute_app：主程序 —— 进程级定向静音（P2.4，进程 loopback，无需虚拟声卡）
+  # M4.3：app_router 自动路由模块用未公开 IAudioPolicyConfig（WinRT 激活）→ runtimeobject。
   add_executable(automute_app
       automute/app_main.cpp automute/engine.cpp ${EMBED_SRCS}
       automute/audio/process_loopback.cpp automute/audio/render_playback.cpp
-      automute/audio/audio_sessions.cpp)
+      automute/audio/audio_sessions.cpp automute/audio/app_router.cpp)
   target_include_directories(automute_app PRIVATE ${EMBED_INCS})
-  target_link_libraries(automute_app PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS} mmdevapi)
+  target_link_libraries(automute_app PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS}
+                        mmdevapi runtimeobject)
 
   # 都要 onnxruntime.dll 在 exe 旁边。
   foreach(t automute_sim_probe automute_detect automute_app)

@@ -31,4 +31,43 @@ bool findRenderEndpoint(const std::string& nameSubstr, Endpoint& out);
 // 这是"路由隔离原声"的目标设备，也是 M4.3 自动路由的前提。
 bool cableInstalled(std::string& endpointId);
 
+// ── M4.3b：每应用默认输出路由（未公开 IAudioPolicyConfig） ──
+// 把目标 App 的输出改路由到指定端点（如 VB-CABLE），退出还原。
+// 用未公开的 WinRT 接口 IAudioPolicyConfigFactory（Win 设置「应用音量和设备首选项」
+// 背后那套）。接口版本脆 → available() 为 false 时前端必须走"引导手动"兜底。
+//
+// 持久性陷阱：路由是 persisted（写进系统、关机重启都在），不还原则目标 App
+// 永久被改到 CABLE。正常退出靠 RAII 析构还原；崩溃/强杀靠 journal 启动兜底
+// （见 m4-app-shell.md 的 M4.3 对齐与 C++ 残留说明）。
+class AppRouter {
+public:
+  AppRouter();
+  ~AppRouter(); // RAII：析构自动 restore()
+  AppRouter(const AppRouter&) = delete;
+  AppRouter& operator=(const AppRouter&) = delete;
+
+  // 未公开接口是否激活成功。false → 前端走"引导手动设置"兜底。
+  bool available() const;
+
+  // 把进程 pid 的默认渲染端点路由到 endpointId（approuter::Endpoint::id）。
+  // 先捕获原值并写 journal（崩溃兜底），再设 eMultimedia/eConsole 两 role。
+  // 失败返回 false 填 err。pid 须有音频会话，否则系统返回 E_INVALIDARG。
+  bool route(uint32_t pid, const std::string& endpointId, std::string& err);
+
+  // 还原 route() 改过的端点（幂等，可重复；析构自动调）。
+  void restore();
+  bool routed() const;
+
+  // 逃生舱：清除【所有】应用的持久路由。崩溃残留的最后兜底（会清掉别的 App
+  // 的有意路由，慎用，作为 UI 上的手动按钮）。
+  bool clearAllRoutes(std::string& err);
+
+  // 启动时调一次：若上次非正常退出留下 journal，按它还原并删 journal。
+  static void recoverStaleRoutes();
+
+private:
+  struct Impl;
+  Impl* impl_;
+};
+
 } // namespace approuter
