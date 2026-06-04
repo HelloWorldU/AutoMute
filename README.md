@@ -54,18 +54,14 @@ Single source of truth for status: [`docs/STATUS.md`](docs/STATUS.md).
 
 Requires CMake ≥ 3.20 and a C++20 compiler (developed with MinGW g++ 14).
 
-**Runtime prerequisites** (install once — not fetched by the script):
-
-- **[VB-CABLE](https://vb-audio.com/Cable/)** virtual audio device — the app routes
-  the target app's output here to isolate the original sound (auto-routes, restores
-  on exit). Without it the muting can't work; if auto-routing is unavailable the app
-  guides you to set it manually.
-- **[WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)** —
-  for the GUI. Preinstalled on most Windows 10/11; install if the window stays blank.
+**Install once yourself** (the script can't fetch these, the app can't install them):
+**[VB-CABLE](https://vb-audio.com/Cable/)** (virtual audio device, to isolate the
+original sound — the app auto-routes to it and guides you if it's missing) and the
+**[WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)** (for
+the GUI; usually preinstalled on Windows 10/11).
 
 ```powershell
-# 0. Fetch source-code deps — ONNX Runtime, kaldi-native-fbank, dr_wav, the model,
-#    plus webview + WebView2 SDK headers (GUI). NOT committed (third_party is gitignored).
+# 0. Fetch third-party deps (not committed — third_party is gitignored)
 powershell -ExecutionPolicy Bypass -File scripts\fetch-deps.ps1
 
 # 1. Configure & build

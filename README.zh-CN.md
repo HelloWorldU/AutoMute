@@ -48,17 +48,13 @@
 
 需要 CMake ≥ 3.20 与一个 C++20 编译器（开发用 MinGW g++ 14）。
 
-**运行前提**（自己装一次，脚本不拉）：
-
-- **[VB-CABLE](https://vb-audio.com/Cable/)** 虚拟声卡 —— app 把目标 App 的输出路由到
-  这里来隔离原声（自动路由、退出还原）。没有它核心静音功能跑不起来；自动路由不可用时
-  app 会引导你手动设置。
-- **[WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/)** ——
-  GUI 需要。Win10/11 多已预装；窗口空白就装一下。
+**需自己装一次**（脚本拉不了、app 也装不了）：**[VB-CABLE](https://vb-audio.com/Cable/)**
+（虚拟声卡，用于隔离原声——app 会自动路由到它，没装会引导你）和
+**[WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/)**
+（GUI 需要，Win10/11 多已预装）。
 
 ```powershell
-# 0. 拉取源码依赖 —— ONNX Runtime、kaldi-native-fbank、dr_wav、模型，
-#    以及 webview + WebView2 SDK 头（GUI）。均不入库（third_party 被 gitignore）。
+# 0. 拉取第三方依赖（不入库 —— third_party 被 gitignore）
 powershell -ExecutionPolicy Bypass -File scripts\fetch-deps.ps1
 
 # 1. 配置 & 构建
