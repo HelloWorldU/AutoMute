@@ -17,7 +17,17 @@
 |---|------|------|
 | **M1** | 打通 C++ 实时音频脊梁：WASAPI loopback 抓系统声音 → 原样回放，测出端到端延迟，加手动静音开关 | ✅ 闭环跑通，管线缓冲稳定 ~20ms |
 | M2 | 接入声纹识别：录入目标样本 → ONNX 推理 embedding → 实时比对 → 命中即掐 | ✅ 全子步骤完成，自动掐声真机验证通过（见 P2.4），详见 [`exec-plans/m2-speaker-id.md`](exec-plans/m2-speaker-id.md) |
-| M3 | 调优：压短判断窗口、VAD 抗噪、阈值调参，让开头泄漏收窄 | 🚧 进行中（M3.1 滑动窗已接） |
+| M3 | 调优：压短判断窗口、VAD 抗噪、阈值调参，让开头泄漏收窄 | 🅿️ 暂告段落：M3.1✅ 滑动窗；M3.4🛑 窗长地板≈1.5s（缩窗反噬）；VAD/迟滞边际小暂缓 |
+| M4 | app 壳（产品化 P3+P4+P5）：配置持久化 + enroll UX + GUI | 🚧 进行中（M4.1 抽 `AutoMuteEngine` 完成） |
+
+## M4 子步骤
+
+| # | 目标 | 状态 |
+|---|------|------|
+| M4.1 | 抽 `AutoMuteEngine` 类（抓取/声纹/门控核心与界面解耦）：`prepare(cfg)`→`start(pid)`→轮询 `similarity()/muted()`→`stop()`，引擎不做 UI 输出。CLI 改为薄前端 | ✅ `automute/engine.{h,cpp}`，app_main 瘦身；行为不变，冒烟通过 |
+| M4.2 | 配置持久化（P3）：记住 PID/目标/阈值/窗到配置文件 | ❌ |
+| M4.3 | enroll UX（P4）：界面里录一段/拖文件当目标 | ❌ |
+| M4.4 | GUI 外壳（P5）：App 下拉 + 开关 + 相似度仪表/🔇🔊 + 阈值滑块 + VB-CABLE 引导（框架待定，倾向 Dear ImGui） | ❌ |
 
 ## M3 子步骤
 
@@ -47,7 +57,8 @@
 | 实时音频管线（环形缓冲 / 无锁队列 / 低延迟线程） | ✅ | 无锁 SPSC 环形缓冲 + 抓取/渲染双线程；闭环稳态 ~20ms | `automute/audio/ring_buffer.h`, `automute/audio/render_playback.cpp`, `automute/app_main.cpp` |
 | 静音门控（gate） | ✅ | 渲染端按 muted 标志输出静音，由声纹判定自动触发 | `automute/audio/render_playback.cpp`, `automute/app_main.cpp` |
 | 实时声纹检测 | ✅ | 抓取+分析双线程，1.5s 窗 enroll 比对，打印是否目标在说话 | `automute/detect_main.cpp` |
-| **主程序：进程级定向静音（P2.4）** | ✅ **真机闭环** | `--proc <PID>` 选目标 App → 进程 loopback 抓取 → 渲染门控版到默认设备 → 声纹判定自动掐声；进程+渲染+分析三线程。隔离原声靠把目标 App 路由到虚拟声卡。真机验证（chrome→CABLE）：放目标A 相似度~0.7→🔇喇叭静音，放异人B ~0.1→🔊放行 | `automute/app_main.cpp` |
+| **引擎 AutoMuteEngine（M4.1）** | ✅ | 抓取+渲染+分析三线程的核心，与界面解耦：`prepare(cfg)`→`start(pid)`→`similarity()/muted()`→`stop()`；不做 UI 输出。CLI/GUI 共用 | `automute/engine.{h,cpp}` |
+| **主程序：进程级定向静音（P2.4）** | ✅ **真机闭环** | `--proc <PID>` 选目标 App → 引擎 → 声纹判定自动掐声；现为驱动引擎的薄 CLI 前端。隔离原声靠把目标 App 路由到虚拟声卡。真机验证（chrome→CABLE）：放目标A 相似度~0.7→🔇喇叭静音，放异人B ~0.1→🔊放行 | `automute/app_main.cpp` |
 | 进程 loopback 抓取（P2.1） | ✅ 真机验证 | 按 PID 抓单个进程音频（MinGW 手补 API）；探针 chrome 实测 -11.8dBFS 正常跳动 | `automute/audio/process_loopback.{h,cpp}` |
 | 进程选择枚举（P2.2） | ✅ | `--apps` 扫描【所有活动输出设备】列出会话（PID+进程名+是否出声+输出到哪个设备），路由到虚拟声卡的进程也能找到。P2.3 的 `setProcessMuted` 已移除：真机验证 mute 会同时掐死 loopback 抓取 | `automute/audio/audio_sessions.{h,cpp}` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |

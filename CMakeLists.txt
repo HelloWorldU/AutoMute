@@ -51,7 +51,7 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
 
   # automute_app：主程序 —— 进程级定向静音（P2.4，进程 loopback，无需虚拟声卡）
   add_executable(automute_app
-      automute/app_main.cpp ${EMBED_SRCS}
+      automute/app_main.cpp automute/engine.cpp ${EMBED_SRCS}
       automute/audio/process_loopback.cpp automute/audio/render_playback.cpp
       automute/audio/audio_sessions.cpp)
   target_include_directories(automute_app PRIVATE ${EMBED_INCS})
