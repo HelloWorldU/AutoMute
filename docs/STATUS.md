@@ -65,6 +65,7 @@
 | 进程 loopback 抓取（P2.1） | ✅ 真机验证 | 按 PID 抓单个进程音频（MinGW 手补 API）；探针 chrome 实测 -11.8dBFS 正常跳动 | `automute/audio/process_loopback.{h,cpp}` |
 | 进程选择枚举（P2.2） | ✅ | `--apps` 扫描【所有活动输出设备】列出会话（PID+进程名+是否出声+输出到哪个设备），路由到虚拟声卡的进程也能找到。P2.3 的 `setProcessMuted` 已移除：真机验证 mute 会同时掐死 loopback 抓取 | `automute/audio/audio_sessions.{h,cpp}` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
+| **每应用路由 AppRouter（M4.3）** | 🚧 | 与引擎解耦的独立模块。M4.3a✅：渲染端点枚举 + VB-CABLE 检测（本机验证：列出端点、命中 "CABLE Input" 拿到 endpointId）。M4.3b❌：未公开 `IAudioPolicyConfig` 的 route/restore + 崩溃残留 journal 兜底 | `automute/audio/app_router.{h,cpp}` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
 | 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/audio/embedder.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
 | 声纹推理（ONNX Runtime C++） | ✅ | 全管线通：wav→fbank→ECAPA 模型→192 维 embedding（ORT 1.26，MinGW） | `automute/audio/embedder.cpp`, `third_party/onnxruntime/` |
