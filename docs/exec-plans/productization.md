@@ -11,9 +11,9 @@
 |---|------|------|------|
 | P1 | ~~**设备选择**~~ | ~~LoopbackCapture/RenderPlayback 可指定设备；`--list/--in/--out`；配 VB-CABLE 解决反馈~~ | 🗑️ 已移除（2026-06-02）：被 P2 进程 loopback 取代，`audio_devices` 删除、`initialize()` 回退无参 |
 | P2 | **进程 loopback** | 用 Win10 process-loopback API 按进程抓目标 App；静音该 App 直接输出；渲染处理后版本。无需虚拟声卡 | ✅ 全子步骤完成，接入主程序 `automute_app`（真机验证待做） |
-| P3 | 配置持久化 | 记住用户选的设备/进程/阈值（写配置文件） | ❌ |
-| P4 | enroll 的 UX | 让用户"给一段目标的声音"：录制一段 / 从流里截一段（命令行→GUI） | ❌ |
-| P5 | GUI 外壳（远期） | Qt / Tauri 界面：选 App、enroll、开关、状态显示 | ❌ |
+| P3-P5 | **并入 M4「app 壳」** | 配置持久化 + enroll UX + GUI 外壳，已经 `/create` 对齐成 v1 spec | 见 [`m4-app-shell.md`](m4-app-shell.md) |
+
+> P3/P4/P5 已收敛进 M4：enroll = **边看边圈在线抓取**（非事先录音）；GUI 框架定 **Dear ImGui+GLFW+OpenGL3**（非 Qt/Tauri）；持久化推到 v1.1。详见 M4 spec。
 
 ## P1 设备选择（已移除）
 

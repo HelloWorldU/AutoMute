@@ -12,6 +12,9 @@
 |---------|--------|
 | 顶层设计 / 终点 / 关键决策 / 延迟权衡 | [`docs/DESIGN.md`](docs/DESIGN.md) |
 | 功能实现状态（单一事实源） | [`docs/STATUS.md`](docs/STATUS.md) |
+| 产品化路线（P1-P5；P1 已移除、P2 已成、P3-5 并入 M4） | [`docs/exec-plans/productization.md`](docs/exec-plans/productization.md) |
+| **M4 app 壳 spec（当前里程碑）** | [`docs/exec-plans/m4-app-shell.md`](docs/exec-plans/m4-app-shell.md) |
+| M2 声纹识别 exec-plan | [`docs/exec-plans/m2-speaker-id.md`](docs/exec-plans/m2-speaker-id.md) |
 
 ---
 
@@ -24,10 +27,14 @@
 
 ---
 
-## 快速启动
+## 进展（速览，细节看 STATUS）
 
-🚧 尚未开工。第一个里程碑见 [`docs/STATUS.md`](docs/STATUS.md)。
+- ✅ M1 音频脊梁 / M2 声纹识别 / P2 进程级定向静音（真机闭环）
+- 🅿️ M3 调优暂告段落（滑动窗已接；窗长地板≈1.5s，缩窗反噬）
+- ▶️ **当前：M4 app 壳**（GUI 化）。spec 已对齐批准，下一步 M4.2 引擎扩展（多目标 + 最近 N 秒快照）
+
+可执行：`automute_app`(主程序) / `automute_ploop_probe`(抓取诊断) / `automute_sim_probe`(相似度) / `automute_detect`(实时检测)。
 
 ---
 
-*Map version: 2026-05-31*
+*Map version: 2026-06-04*

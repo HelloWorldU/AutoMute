@@ -22,12 +22,15 @@
 
 ## M4 子步骤
 
+> 已经 `/create` 对齐并批准，详见 [`exec-plans/m4-app-shell.md`](exec-plans/m4-app-shell.md)。
+> v1 = 垂直切片（全链路先单人，在线抓取登记 + 自动路由 + ImGui GUI）。
+
 | # | 目标 | 状态 |
 |---|------|------|
-| M4.1 | 抽 `AutoMuteEngine` 类（抓取/声纹/门控核心与界面解耦）：`prepare(cfg)`→`start(pid)`→轮询 `similarity()/muted()`→`stop()`，引擎不做 UI 输出。CLI 改为薄前端 | ✅ `automute/engine.{h,cpp}`，app_main 瘦身；行为不变，冒烟通过 |
-| M4.2 | 配置持久化（P3）：记住 PID/目标/阈值/窗到配置文件 | ❌ |
-| M4.3 | enroll UX（P4）：界面里录一段/拖文件当目标 | ❌ |
-| M4.4 | GUI 外壳（P5）：App 下拉 + 开关 + 相似度仪表/🔇🔊 + 阈值滑块 + VB-CABLE 引导（框架待定，倾向 Dear ImGui） | ❌ |
+| M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦）：`prepare(cfg)`→`start(pid)`→轮询 `similarity()/muted()`→`stop()`，引擎不做 UI 输出。CLI 改薄前端 | ✅ `automute/engine.{h,cpp}`，行为不变，冒烟通过 |
+| M4.2 | 引擎扩展：单目标→多目标（按 N 设计，v1=1）+ 暴露"最近 N 秒快照"API（在线抓取登记的地基） | ❌ ← 下一步 |
+| M4.3 | 路由模块：未公开 `IAudioPolicyConfig` COM 自动路由/还原每应用输出 + VB-CABLE 检测/安装 + 失败兑底引导 | ❌ |
+| M4.4 | GUI 外壳（ImGui+GLFW+OpenGL3）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | ❌ |
 
 ## M3 子步骤
 
