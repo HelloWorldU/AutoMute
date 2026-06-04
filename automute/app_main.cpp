@@ -13,6 +13,11 @@
 //     automute_app --proc <PID> [目标.wav] [model.onnx]
 //                  [--window 0.75] [--hop 0.25] [--thresh 0.5]   ← 扫参,免重编译
 //
+//   运行中热键（M4.2 多目标 + 在线抓取冰测）:
+//     c        抓取最近 3s 当前说话人 → 输入名字 → 登记为新目标（静音开关默认关）
+//     1..9     切换第 N 个目标的静音开关（开了才会掐这个人）
+//     q        退出
+//
 //   准备(一次性): 装 VB-CABLE，在 Windows「音量合成器/应用音量」把目标 App 的输出
 //                 设为 "CABLE Input"，系统默认输出保持喇叭。
 //
@@ -21,6 +26,7 @@
 #include <chrono>
 #include <conio.h>
 #include <cstdio>
+#include <iostream>
 #include <string>
 #include <thread>
 
@@ -75,12 +81,53 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  printf("AutoMute 运行中：检测到目标说话即自动静音，其余照常。q 退出。\n\n");
+  printf("AutoMute 运行中：检测到【开了静音开关】的目标说话即掐声，其余照常。\n");
+  printf("热键：c 抓取当前说话人登记新目标 / 1-9 切第 N 个目标静音开关 / q 退出。\n\n");
   while (engine.running()) {
-    if (_kbhit() && (_getch() == 'q'))
-      break;
-    printf("\r相似度 %.3f   %s          ", engine.similarity(),
-           engine.muted() ? "🔇 静音中" : "🔊 放行");
+    if (_kbhit()) {
+      int k = _getch();
+      if (k == 'q')
+        break;
+      if (k == 'c') {
+        // 在线圈人：抓最近 3s → 命名 → 登记（静音开关默认关，圈完先看仪表）。
+        std::vector<float> snap;
+        uint32_t sr = 0;
+        if (engine.snapshotRecent(3.0f, snap, sr) && !snap.empty()) {
+          printf("\n抓到 %.2fs 音频，输入名字回车登记（直接回车自动命名）: ",
+                 snap.size() / (float)sr);
+          fflush(stdout);
+          std::string name;
+          std::getline(std::cin, name);
+          if (name.empty())
+            name = "目标" + std::to_string(engine.targetCount() + 1);
+          std::string er;
+          int idx = engine.addTarget(name, snap, sr, er);
+          if (idx < 0)
+            printf("登记失败: %s\n", er.c_str());
+          else
+            printf("已登记 [%d] %s —— 按数字键 %d 开它的静音开关。\n", idx,
+                   name.c_str(), idx + 1);
+        } else {
+          printf("\n快照为空（还没抓到声音，等目标 App 出声后再试）。\n");
+        }
+      } else if (k >= '1' && k <= '9') {
+        size_t idx = (size_t)(k - '1');
+        if (idx < engine.targetCount()) {
+          AutoMuteEngine::TargetView v = engine.targetAt(idx);
+          engine.setTargetMuted(idx, !v.muted);
+        }
+      }
+    }
+    // 状态行：聚合 + 每个目标的相似度/开关。
+    printf("\r%s 聚合%.3f | ", engine.muted() ? "🔇" : "🔊",
+           engine.similarity());
+    size_t n = engine.targetCount();
+    for (size_t i = 0; i < n; ++i) {
+      AutoMuteEngine::TargetView v = engine.targetAt(i);
+      printf("[%zu]%s%.2f%s ", i + 1, v.name.c_str(), v.similarity,
+             v.muted ? "🔒" : "🔓");
+    }
+    printf("        ");
     fflush(stdout);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }

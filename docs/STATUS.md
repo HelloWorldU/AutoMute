@@ -28,7 +28,7 @@
 | # | 目标 | 状态 |
 |---|------|------|
 | M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦）：`prepare(cfg)`→`start(pid)`→轮询 `similarity()/muted()`→`stop()`，引擎不做 UI 输出。CLI 改薄前端 | ✅ `automute/engine.{h,cpp}`，行为不变，冒烟通过 |
-| M4.2 | 引擎扩展：单目标→多目标（按 N 设计，v1=1）+ 暴露"最近 N 秒快照"API（在线抓取登记的地基） | ❌ ← 下一步 |
+| M4.2 | 引擎扩展：单目标→多目标（按 N 设计，v1=1）+ 暴露"最近 N 秒快照"API（在线抓取登记的地基） | ✅ 引擎扩展完成：多目标列表（聚合 max+per-target getters，任一开静音命中即掐）+ `snapshotRecent()`（抓取线程维护 5s mono 历史环，加锁拷）+ 运行中 `addTarget`。CLI 加热键 c/1-9 冰测；构建通过、快照环形数学单测通过、`--apps` 跑通。真机多目标/在线抓取待用户验 |
 | M4.3 | 路由模块：未公开 `IAudioPolicyConfig` COM 自动路由/还原每应用输出 + VB-CABLE 检测/安装 + 失败兑底引导 | ❌ |
 | M4.4 | GUI 外壳（C++ webview / WebView2，前端 HTML/CSS/JS）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | ❌ |
 
@@ -60,7 +60,7 @@
 | 实时音频管线（环形缓冲 / 无锁队列 / 低延迟线程） | ✅ | 无锁 SPSC 环形缓冲 + 抓取/渲染双线程；闭环稳态 ~20ms | `automute/audio/ring_buffer.h`, `automute/audio/render_playback.cpp`, `automute/app_main.cpp` |
 | 静音门控（gate） | ✅ | 渲染端按 muted 标志输出静音，由声纹判定自动触发 | `automute/audio/render_playback.cpp`, `automute/app_main.cpp` |
 | 实时声纹检测 | ✅ | 抓取+分析双线程，1.5s 窗 enroll 比对，打印是否目标在说话 | `automute/detect_main.cpp` |
-| **引擎 AutoMuteEngine（M4.1）** | ✅ | 抓取+渲染+分析三线程的核心，与界面解耦：`prepare(cfg)`→`start(pid)`→`similarity()/muted()`→`stop()`；不做 UI 输出。CLI/GUI 共用 | `automute/engine.{h,cpp}` |
+| **引擎 AutoMuteEngine（M4.1+M4.2）** | ✅ | 抓取+渲染+分析三线程的核心，与界面解耦：`prepare(cfg)`→`start(pid)`→`similarity()/muted()`→`stop()`；不做 UI 输出。CLI/GUI 共用。**M4.2**：多目标列表（`addTarget`/`setTargetMuted`/`targetCount`/`targetAt`，任一开静音命中即掐，聚合 `similarity()` 取 max）+ `snapshotRecent(sec)`（抓取线程维护 5s mono 历史环，加锁拷，在线圈人地基） | `automute/engine.{h,cpp}` |
 | **主程序：进程级定向静音（P2.4）** | ✅ **真机闭环** | `--proc <PID>` 选目标 App → 引擎 → 声纹判定自动掐声；现为驱动引擎的薄 CLI 前端。隔离原声靠把目标 App 路由到虚拟声卡。真机验证（chrome→CABLE）：放目标A 相似度~0.7→🔇喇叭静音，放异人B ~0.1→🔊放行 | `automute/app_main.cpp` |
 | 进程 loopback 抓取（P2.1） | ✅ 真机验证 | 按 PID 抓单个进程音频（MinGW 手补 API）；探针 chrome 实测 -11.8dBFS 正常跳动 | `automute/audio/process_loopback.{h,cpp}` |
 | 进程选择枚举（P2.2） | ✅ | `--apps` 扫描【所有活动输出设备】列出会话（PID+进程名+是否出声+输出到哪个设备），路由到虚拟声卡的进程也能找到。P2.3 的 `setProcessMuted` 已移除：真机验证 mute 会同时掐死 loopback 抓取 | `automute/audio/audio_sessions.{h,cpp}` |

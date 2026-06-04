@@ -1,5 +1,6 @@
 #include "automute/engine.h"
 
+#include <algorithm>
 #include <chrono>
 
 #include "automute/audio/process_loopback.h"
@@ -11,10 +12,109 @@ bool AutoMuteEngine::prepare(const Config& cfg, std::string& err) {
   cfg_ = cfg;
   if (!emb_.load(cfg_.model, err))
     return false;
-  if (!emb_.embedWav(cfg_.targetWav, target_, err)) {
-    err = "enroll 目标失败: " + err;
+  // CLI 旧行为：给了目标 wav 就登记为首个目标并开静音开关（启动即生效）。
+  // GUI 走在线抓取可留空，启动后再 addTarget。
+  if (!cfg_.targetWav.empty()) {
+    int idx = addTargetFromWav("目标", cfg_.targetWav, err);
+    if (idx < 0)
+      return false;
+    setTargetMuted((size_t)idx, true);
+  }
+  prepared_ = true;
+  return true;
+}
+
+int AutoMuteEngine::enroll(const std::string& name, std::vector<float>&& emb) {
+  std::lock_guard<std::mutex> lk(targetsMu_);
+  auto t = std::make_unique<Target>();
+  t->name = name;
+  t->emb = std::move(emb);
+  targets_.push_back(std::move(t));
+  return (int)targets_.size() - 1;
+}
+
+int AutoMuteEngine::addTarget(const std::string& name,
+                              const std::vector<float>& mono, uint32_t sr,
+                              std::string& err) {
+  std::vector<float> e;
+  if (!emb_.embed(mono, sr, e, err)) {
+    err = "登记 '" + name + "' 失败: " + err;
+    return -1;
+  }
+  return enroll(name, std::move(e));
+}
+
+int AutoMuteEngine::addTargetFromWav(const std::string& name,
+                                     const std::string& wavPath,
+                                     std::string& err) {
+  std::vector<float> e;
+  if (!emb_.embedWav(wavPath, e, err)) {
+    err = "登记 '" + name + "' 失败: " + err;
+    return -1;
+  }
+  return enroll(name, std::move(e));
+}
+
+void AutoMuteEngine::setTargetMuted(size_t idx, bool on) {
+  std::lock_guard<std::mutex> lk(targetsMu_);
+  if (idx < targets_.size())
+    targets_[idx]->muted.store(on);
+}
+
+size_t AutoMuteEngine::targetCount() const {
+  std::lock_guard<std::mutex> lk(targetsMu_);
+  return targets_.size();
+}
+
+AutoMuteEngine::TargetView AutoMuteEngine::targetAt(size_t idx) const {
+  std::lock_guard<std::mutex> lk(targetsMu_);
+  TargetView v{};
+  if (idx < targets_.size()) {
+    v.name = targets_[idx]->name;
+    v.similarity = targets_[idx]->lastSim.load();
+    v.muted = targets_[idx]->muted.load();
+  }
+  return v;
+}
+
+void AutoMuteEngine::pushHistory(const float* mono, size_t n) {
+  std::lock_guard<std::mutex> lk(histMu_);
+  if (hist_.empty()) {
+    const size_t cap = (size_t)(kHistorySec * sampleRate_.load());
+    hist_.assign(cap ? cap : 1, 0.0f);
+    histWrite_ = 0;
+    histFilled_ = 0;
+  }
+  const size_t cap = hist_.size();
+  // 一次写入超过容量时只保留尾部 cap 个（更早的本来也会被覆盖掉）。
+  if (n >= cap) {
+    mono += (n - cap);
+    n = cap;
+  }
+  for (size_t i = 0; i < n; ++i) {
+    hist_[histWrite_] = mono[i];
+    histWrite_ = (histWrite_ + 1) % cap;
+  }
+  histFilled_ = std::min(histFilled_ + n, cap);
+}
+
+bool AutoMuteEngine::snapshotRecent(float seconds, std::vector<float>& outMono,
+                                    uint32_t& sr) const {
+  std::lock_guard<std::mutex> lk(histMu_);
+  sr = sampleRate_.load();
+  if (histFilled_ == 0) {
+    outMono.clear();
     return false;
   }
+  const size_t cap = hist_.size();
+  size_t want = (size_t)(seconds * sr);
+  if (want > histFilled_)
+    want = histFilled_;
+  outMono.resize(want);
+  // 最近 want 个样本：从 (histWrite_ - want) 处环形读到 histWrite_。
+  const size_t start = (histWrite_ + cap - want) % cap;
+  for (size_t i = 0; i < want; ++i)
+    outMono[i] = hist_[(start + i) % cap];
   return true;
 }
 
@@ -23,14 +123,14 @@ bool AutoMuteEngine::start(uint32_t pid, std::string& err) {
     err = "引擎已在运行";
     return false;
   }
-  if (target_.empty()) {
-    err = "请先 prepare() 登记目标声纹";
+  if (!prepared_) {
+    err = "请先 prepare() 加载模型";
     return false;
   }
   error_.clear();
   running_.store(true);
 
-  // 抓取线程：进程 loopback → 交错写播放缓冲，降混单声道写分析缓冲。
+  // 抓取线程：进程 loopback → 交错写播放缓冲，降混单声道写分析缓冲 + 历史环。
   // 注：初始化失败时先写 error_ 再 running_.store(false)；前端见 running()==false
   // 后读 error()，靠 running_ 的 release/acquire 保证 error_ 写入可见。
   capThread_ = std::thread([this, pid] {
@@ -53,6 +153,7 @@ bool AutoMuteEngine::start(uint32_t pid, std::string& err) {
             mono[f] = m / ch;
           }
           rbAna_.write(mono.data(), frames);
+          pushHistory(mono.data(), frames);
         },
         running_);
   });
@@ -68,7 +169,8 @@ bool AutoMuteEngine::start(uint32_t pid, std::string& err) {
     ren.run(rbPlay_, running_, &muted_);
   });
 
-  // 分析线程：滑动窗→声纹→比对目标→设 muted（M3.1：滑动窗+跳步）。
+  // 分析线程：滑动窗→声纹→比对【每个】目标→设各自 lastSim 与全局聚合
+  // （M3.1 滑动窗+跳步；M4.2 多目标：任一开了静音的目标命中就掐）。
   anaThread_ = std::thread([this] {
     std::vector<float> window;
     std::vector<float> chunk(4096);
@@ -92,11 +194,28 @@ bool AutoMuteEngine::start(uint32_t pid, std::string& err) {
         sinceEval = 0;
         std::vector<float> e;
         std::string er;
-        if (emb_.embed(window, r, e, er)) {
-          float sim = cosineSimilarity(e, target_);
-          lastSim_.store(sim);
-          muted_.store(sim > cfg_.threshold); // 是目标 → 掐声
+        if (!emb_.embed(window, r, e, er))
+          continue;
+        // 在锁内拷出目标裸指针（只增不删→指针稳定），锁外算相似度。
+        std::vector<Target*> snap;
+        {
+          std::lock_guard<std::mutex> lk(targetsMu_);
+          snap.reserve(targets_.size());
+          for (auto& up : targets_)
+            snap.push_back(up.get());
         }
+        float best = 0.0f;
+        bool anyMute = false;
+        for (Target* t : snap) {
+          float sim = cosineSimilarity(e, t->emb);
+          t->lastSim.store(sim);
+          if (sim > best)
+            best = sim;
+          if (t->muted.load() && sim > cfg_.threshold)
+            anyMute = true; // 开了静音的目标命中 → 掐
+        }
+        lastSim_.store(best);
+        muted_.store(anyMute);
       }
     }
   });
