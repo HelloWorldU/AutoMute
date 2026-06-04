@@ -31,10 +31,10 @@ people speaking **in turns** (non-overlapping), on **Windows**.
 You can't mute a voice you haven't heard yet. So the tool captures the mixed
 audio the system is playing, decides in real time *"is the current speaker the
 target?"*, and gates out that span if so. The decision needs a short slice of
-audio (~200–400 ms — a physical floor for acoustic speaker ID), so the **first
-moment of each of the target's turns leaks through** before muting catches up.
-What you get in return is **no audio/video delay** — for lip-sync content,
-that's more acceptable than a constant A/V mismatch.
+audio (~1.5 s in practice — an acoustic floor for this speaker-ID model, found
+in M3.4), so the **first moment of each of the target's turns leaks through**
+before muting catches up. What you get in return is **no audio/video delay** —
+for lip-sync content, that's more acceptable than a constant A/V mismatch.
 
 Design details in [`docs/DESIGN.md`](docs/DESIGN.md); implementation status in
 [`docs/STATUS.md`](docs/STATUS.md).
@@ -43,9 +43,12 @@ Design details in [`docs/DESIGN.md`](docs/DESIGN.md); implementation status in
 
 | Milestone | Scope | Status |
 |-----------|-------|--------|
-| **M1** | WASAPI loopback capture → playback, measure latency, manual mute toggle | 🚧 capture working |
-| M2 | Enroll target voiceprint → ONNX inference → real-time match → gate on hit | ❌ |
-| M3 | Tuning: shrink the decision window, VAD noise robustness, threshold tuning | ❌ |
+| **M1** | WASAPI loopback capture → playback, latency, manual mute toggle | ✅ closed loop, steady ~20 ms |
+| **M2** | Enroll target voiceprint → ONNX inference → real-time match → gate on hit | ✅ real-machine auto-mute verified |
+| **M3** | Tuning: shrink the decision window, VAD, threshold | 🅿️ paused — ~1.5 s window floor (shrinking backfires, M3.4) |
+| **M4** | App shell: decoupled `AutoMuteEngine` + auto device-routing + GUI | 🚧 M4.1–4.3 done; M4.4 GUI scaffold up |
+
+Single source of truth for status: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Build
 
@@ -73,7 +76,10 @@ cmake --build build
 ./build/bin/automute_gui        # pick an app → capture a speaker → toggle mute
 ```
 
-### Try speaker ID (optional)
+### CLI / diagnostics (optional)
+
+The GUI above is the main entry. The same engine is also driven by a thin CLI,
+plus offline probes — handy for tuning and troubleshooting:
 
 ```powershell
 # Regenerate test speech samples (same speaker ×2 + different speaker ×1)
@@ -86,18 +92,23 @@ python scripts\make-test-speakers.py
 # Live: enroll a target voice, then play audio — prints whether the target is speaking
 .\build\bin\automute_detect.exe models\test_speakers\spkA_1272_1.wav
 
-# THE APP: enroll a target → it auto-mutes that voice from the system output
-.\build\bin\automute_app.exe models\test_speakers\spkA_1272_1.wav
+# CLI app: list sounding processes, then target one by PID (auto-routes to VB-CABLE)
+.\build\bin\automute_app.exe --apps
+.\build\bin\automute_app.exe --proc <PID> models\test_speakers\spkA_1272_1.wav
 ```
 
-> ⚠️ Capturing and rendering the same default device causes echo feedback — for a
-> real setup, route the source app's audio through a virtual cable (see `docs/DESIGN.md`).
+> The GUI and CLI app auto-route the target app to VB-CABLE to isolate its
+> original sound, then render the gated audio to your speakers — no echo
+> feedback. The offline probes (`sim_probe`/`detect`) use the default device
+> directly. See [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Tech stack
 
 - **C++20** — real-time audio engine written from scratch (ring buffer / lock-free queue / low-latency threads)
-- **WASAPI** — Windows system-audio loopback capture and playback
-- **ONNX Runtime** (planned) — run a pretrained lightweight speaker model (ECAPA / x-vector)
+- **WASAPI** — Windows system-audio loopback capture, per-process loopback, playback
+- **ONNX Runtime** — pretrained lightweight speaker model (wespeaker ECAPA-TDNN, VoxCeleb)
+- **WebView2** via [webview/webview](https://github.com/webview/webview) — GUI shell (C++ backend + HTML/CSS/JS front-end)
+- Undocumented **`IAudioPolicyConfig`** COM — per-app output routing (auto-route to VB-CABLE, restore on exit)
 
 ## License
 
