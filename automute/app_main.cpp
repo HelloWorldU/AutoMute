@@ -14,6 +14,7 @@
 //   用法:
 //     automute_app --apps                              列出在出声的进程及 PID
 //     automute_app --proc <PID> [目标.wav] [model.onnx]
+//                  [--window 0.75] [--hop 0.25] [--thresh 0.5]   ← M3 扫参,免重编译
 //
 //   准备(一次性): 装 VB-CABLE，在 Windows「音量合成器/应用音量」把目标 App 的输出
 //                 设为 "CABLE Input"，系统默认输出保持喇叭。
@@ -39,10 +40,10 @@ int main(int argc, char** argv) {
   std::string targetWav = "models/test_speakers/spkA_1272_1.wav";
   std::string model = "models/voxceleb_ECAPA512_LM.onnx";
   uint32_t procPid = 0; // 目标 App 的 PID（必填，--proc 指定）
-  // ── M3 调参旋钮 ──
-  const float THRESH = 0.5f;     // 相似度 > 阈值 判为目标
-  const float WINDOW_SEC = 1.5f; // 声纹判定窗长（越短越跟手、但越短越不准，有物理地板）
-  const float HOP_SEC = 0.25f;   // 每滑过这么久重判一次（滑动窗，不再清空重攒）
+  // ── M3 调参旋钮（可用 --thresh/--window/--hop 覆盖，免重编译扫参）──
+  float THRESH = 0.5f;     // 相似度 > 阈值 判为目标
+  float WINDOW_SEC = 1.5f; // 声纹判定窗长（越短越跟手、但越短越不准，有物理地板）
+  float HOP_SEC = 0.25f;   // 每滑过这么久重判一次（滑动窗，不再清空重攒）
 
   // 参数解析：--apps 列进程；--proc 选目标 App；以 .onnx 结尾当模型，其余当目标 wav。
   for (int i = 1; i < argc; ++i) {
@@ -52,6 +53,12 @@ int main(int argc, char** argv) {
       return 0;
     } else if (a == "--proc" && i + 1 < argc) {
       procPid = (uint32_t)atoi(argv[++i]);
+    } else if (a == "--window" && i + 1 < argc) {
+      WINDOW_SEC = (float)atof(argv[++i]);
+    } else if (a == "--hop" && i + 1 < argc) {
+      HOP_SEC = (float)atof(argv[++i]);
+    } else if (a == "--thresh" && i + 1 < argc) {
+      THRESH = (float)atof(argv[++i]);
     } else if (a.size() > 5 && a.substr(a.size() - 5) == ".onnx") {
       model = a;
     } else {
@@ -78,6 +85,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   printf("已登记目标声纹: %s\n", targetWav.c_str());
+  printf("调参：窗 %.2fs / 跳步 %.2fs / 阈值 %.2f\n", WINDOW_SEC, HOP_SEC, THRESH);
   printf("提示：确保目标 App 已路由到虚拟声卡，否则会听到原声叠加。\n");
   fflush(stdout);
 
