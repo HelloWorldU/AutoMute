@@ -51,17 +51,27 @@ Design details in [`docs/DESIGN.md`](docs/DESIGN.md); implementation status in
 
 Requires CMake ≥ 3.20 and a C++20 compiler (developed with MinGW g++ 14).
 
+**Runtime prerequisites** (install once — not fetched by the script):
+
+- **[VB-CABLE](https://vb-audio.com/Cable/)** virtual audio device — the app routes
+  the target app's output here to isolate the original sound (auto-routes, restores
+  on exit). Without it the muting can't work; if auto-routing is unavailable the app
+  guides you to set it manually.
+- **[WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)** —
+  for the GUI. Preinstalled on most Windows 10/11; install if the window stays blank.
+
 ```powershell
-# 0. Fetch third-party deps (ONNX Runtime, kaldi-native-fbank, dr_wav, model) — NOT committed
+# 0. Fetch source-code deps — ONNX Runtime, kaldi-native-fbank, dr_wav, the model,
+#    plus webview + WebView2 SDK headers (GUI). NOT committed (third_party is gitignored).
 powershell -ExecutionPolicy Bypass -File scripts\fetch-deps.ps1
 
 # 1. Configure & build
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-./build/bin/automute_probe      # current: listens to system output, prints a live level meter
-```
 
-Play any sound — the level meter should react, confirming the capture path works.
+# 2. Run the GUI (from the project root, so models/ resolves)
+./build/bin/automute_gui        # pick an app → capture a speaker → toggle mute
+```
 
 ### Try speaker ID (optional)
 

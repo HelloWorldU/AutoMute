@@ -45,17 +45,26 @@
 
 需要 CMake ≥ 3.20 与一个 C++20 编译器（开发用 MinGW g++ 14）。
 
+**运行前提**（自己装一次，脚本不拉）：
+
+- **[VB-CABLE](https://vb-audio.com/Cable/)** 虚拟声卡 —— app 把目标 App 的输出路由到
+  这里来隔离原声（自动路由、退出还原）。没有它核心静音功能跑不起来；自动路由不可用时
+  app 会引导你手动设置。
+- **[WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/)** ——
+  GUI 需要。Win10/11 多已预装；窗口空白就装一下。
+
 ```powershell
-# 0. 拉取第三方依赖（ONNX Runtime、kaldi-native-fbank、dr_wav、模型）—— 不入库
+# 0. 拉取源码依赖 —— ONNX Runtime、kaldi-native-fbank、dr_wav、模型，
+#    以及 webview + WebView2 SDK 头（GUI）。均不入库（third_party 被 gitignore）。
 powershell -ExecutionPolicy Bypass -File scripts\fetch-deps.ps1
 
 # 1. 配置 & 构建
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-./build/bin/automute_probe      # 当前：监听系统输出，打印实时音量条
-```
 
-播放任意声音，能看到电平条随之跳动，即说明抓取链路正常。
+# 2. 跑 GUI（在项目根目录跑，models/ 才解析得到）
+./build/bin/automute_gui        # 选 App → 抓取说话人 → 切静音开关
+```
 
 ### 试试声纹识别（可选）
 
