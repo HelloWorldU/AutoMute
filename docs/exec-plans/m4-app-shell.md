@@ -56,7 +56,27 @@ GUI 驱动已有的 [`AutoMuteEngine`](../../automute/engine.h)（M4.1 已抽出
 | M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦） | ✅ 已完成 |
 | M4.2 | 引擎扩展：多目标（按 N 设计，v1=1）+ "最近 N 秒"快照 API | ✅ 已完成（见下「M4.2 对齐」；真机多目标待用户验） |
 | M4.3 | 路由模块：自动路由/还原（未公开 COM）+ VB-CABLE 检测/安装 + 兑底引导 | ✅ 已完成（a 检测 / b 路由还原 / c 接进 app_main；真机端到端 + 崩溃兜底验通） |
-| M4.4 | GUI 外壳（C++ webview / WebView2）：前端 HTML/CSS/JS，把选 App/抓取命名/静音开关/仪表/退出还原串起来 | ❌ ← 下一步 |
+| M4.4 | GUI 外壳（C++ webview / WebView2）：前端 HTML/CSS/JS，把选 App/抓取命名/静音开关/仪表/退出还原串起来 | 🚧 骨架+地基验通：MinGW+WebView2 编译/链接/起窗口✓；前端单页 + 6 个 bind + 引擎/路由接通；启动存活验证✓。真机交互/听感待用户验 |
+
+## M4.4 依赖获取（webview，gitignore 不入库，需手动 vendor）
+
+`/third_party/` 被 gitignore（同 onnxruntime/kaldi）。webview 这样弄进来：
+
+```bash
+# 1) webview 0.12.0 单头（发布版就是单 webview.h；master 才拆多头）
+curl -sL https://github.com/webview/webview/archive/refs/tags/0.12.0.tar.gz | tar -xz -C /tmp
+cp /tmp/webview-0.12.0/core/include/webview/webview.h third_party/webview/include/
+# 2) WebView2 SDK 头（从 nuget .nupkg 解出，放 webview.h 同目录供其 #include "WebView2.h"）
+curl -sL https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.2792.45 -o /tmp/wv2.nupkg
+unzip -j /tmp/wv2.nupkg "build/native/include/WebView2.h" \
+  "build/native/include/WebView2EnvironmentOptions.h" -d third_party/webview/include/
+```
+
+MinGW 关键点（已验）：webview 默认 `MSWEBVIEW2_BUILTIN_IMPL`+`EXPLICIT_LINK` →
+**无需 .lib、无需 WebView2Loader.dll**（运行时已装即可）；只链 win 系统库
+（runtimeobject/ole32/oleaut32/version/shlwapi/shell32/gdi32/user32）。
+**套间坑**：先建 webview（占 STA）再建 AppRouter，否则 router 的 MTA 让 webview 抛
+`CoInitializeEx concurrency` 冲突。
 
 ## M4.2 对齐（已钉，2026-06-04）
 

@@ -59,8 +59,19 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
   target_link_libraries(automute_app PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS}
                         mmdevapi runtimeobject)
 
+  # automute_gui：GUI 外壳（M4.4）—— C++ webview(WebView2) 宿主，前端 HTML/CSS/JS。
+  # 复用引擎 + 路由模块；webview 单头 0.12 内置加载器(无需 .lib/WebView2Loader.dll)。
+  set(WEBVIEW_INC ${CMAKE_SOURCE_DIR}/third_party/webview/include)
+  add_executable(automute_gui
+      automute/gui_main.cpp automute/gui_html.cpp automute/engine.cpp ${EMBED_SRCS}
+      automute/audio/process_loopback.cpp automute/audio/render_playback.cpp
+      automute/audio/audio_sessions.cpp automute/audio/app_router.cpp)
+  target_include_directories(automute_gui PRIVATE ${EMBED_INCS} ${WEBVIEW_INC})
+  target_link_libraries(automute_gui PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS} mmdevapi
+      runtimeobject advapi32 version shlwapi shell32 gdi32 user32 ole32 oleaut32)
+
   # 都要 onnxruntime.dll 在 exe 旁边。
-  foreach(t automute_sim_probe automute_detect automute_app)
+  foreach(t automute_sim_probe automute_detect automute_app automute_gui)
     add_custom_command(TARGET ${t} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:${t}>)

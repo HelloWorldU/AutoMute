@@ -31,9 +31,9 @@
 
 - ✅ M1 音频脊梁 / M2 声纹识别 / P2 进程级定向静音（真机闭环）
 - 🅿️ M3 调优暂告段落（滑动窗已接；窗长地板≈1.5s，缩窗反噬）
-- ▶️ **当前：M4 app 壳**（GUI 化）。M4.1 抽引擎 ✅ / M4.2 引擎扩展 ✅ / M4.3 自动路由模块 ✅（未公开 COM，真机+崩溃兜底验通），下一步 M4.4 GUI 外壳
+- ▶️ **当前：M4 app 壳**（GUI 化）。M4.1 抽引擎 ✅ / M4.2 引擎扩展 ✅ / M4.3 自动路由 ✅ / M4.4 GUI 外壳 🚧（C++ webview+WebView2，MinGW 验通、骨架接通引擎+路由，真机交互待验）
 
-可执行：`automute_app`(主程序) / `automute_ploop_probe`(抓取诊断) / `automute_sim_probe`(相似度) / `automute_detect`(实时检测)。
+可执行：`automute_gui`(GUI 主程序, M4.4) / `automute_app`(CLI 前端) / `automute_ploop_probe`(抓取诊断) / `automute_sim_probe`(相似度) / `automute_detect`(实时检测)。
 
 ---
 

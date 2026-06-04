@@ -30,7 +30,7 @@
 | M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦）：`prepare(cfg)`→`start(pid)`→轮询 `similarity()/muted()`→`stop()`，引擎不做 UI 输出。CLI 改薄前端 | ✅ `automute/engine.{h,cpp}`，行为不变，冒烟通过 |
 | M4.2 | 引擎扩展：单目标→多目标（按 N 设计，v1=1）+ 暴露"最近 N 秒快照"API（在线抓取登记的地基） | ✅ 引擎扩展完成：多目标列表（聚合 max+per-target getters，任一开静音命中即掐）+ `snapshotRecent()`（抓取线程维护 5s mono 历史环，加锁拷）+ 运行中 `addTarget`。CLI 加热键 c/1-9 冰测；构建通过、快照环形数学单测通过、`--apps` 跑通。真机多目标/在线抓取待用户验 |
 | M4.3 | 路由模块：未公开 `IAudioPolicyConfig` COM 自动路由/还原每应用输出 + VB-CABLE 检测/安装 + 失败兑底引导 | ✅ 独立 `AppRouter` 模块（M4.3a 检测 + M4.3b 路由/还原 + M4.3c 接进 app_main）。真机端到端验证：自动路由 QQMusic→CABLE、引擎运行、强杀留 journal→下次启动 recoverStaleRoutes 恢复到扬声器、journal 清除。失败逐级回退引导手动 |
-| M4.4 | GUI 外壳（C++ webview / WebView2，前端 HTML/CSS/JS）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | ❌ |
+| M4.4 | GUI 外壳（C++ webview / WebView2，前端 HTML/CSS/JS）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | 🚧 骨架完成：webview 0.12 单头 vendor（MinGW+WebView2 编译/链接/起窗口验通，无需 .lib/Loader.dll）；前端单页 HTML/CSS/JS + `listApps/start/stop/capture/setMuted/getStatus` 6 个 bind，驱动引擎+路由；启动存活验证✓。**踩坑**：先建 webview 占 STA 再建 AppRouter，否则 MTA/STA 套间冲突 webview 抛异常。真机交互/听感待用户验 |
 
 ## M3 子步骤
 
@@ -66,6 +66,7 @@
 | 进程选择枚举（P2.2） | ✅ | `--apps` 扫描【所有活动输出设备】列出会话（PID+进程名+是否出声+输出到哪个设备），路由到虚拟声卡的进程也能找到。P2.3 的 `setProcessMuted` 已移除：真机验证 mute 会同时掐死 loopback 抓取 | `automute/audio/audio_sessions.{h,cpp}` |
 | 音频渲染（WASAPI 事件驱动回放） | ✅ | 默认设备，事件驱动低延迟 | `automute/audio/render_playback.cpp` |
 | **每应用路由 AppRouter（M4.3）** | 🚧 | 与引擎解耦的独立模块。M4.3a✅ 端点枚举 + VB-CABLE 检测。M4.3b✅ 未公开 `IAudioPolicyConfigFactory`（WinRT 激活，IID 2a59116d 回退、vtable 19 保留+Set/Get/Clear、`\\?\SWD#MMDEVAPI#<id>#{render}` 打包）的 route/restore（eConsole+eMultimedia 双 role）+ RAII 还原 + 崩溃 journal 启动兜底 + ClearAll 逃生舱。**踩坑**：接口类型必须外部链接，否则 GCC -O2 去虚化跳飞。M4.3c✅ 接进 app_main（启动 recoverStaleRoutes→检测→自动路由→退出/Ctrl+C 还原，逐级回退引导手动）。**真机端到端验证**：QQMusic→CABLE→强杀残留→下次启动恢复→journal 清除。⚠️ 已知限制：运行中用户手动改设备会与还原冲突，v1 不做实时设备监听（backlog） | `automute/audio/app_router.{h,cpp}` |
+| **GUI 外壳（M4.4）** | 🚧 | C++ webview(WebView2) 宿主 + 纯 HTML/CSS/JS 单页前端，复用引擎+AppRouter；6 个 JS↔C++ bind + 前端 250ms 轮询 getStatus 画仪表。构建/起窗口/prepare 验通，真机交互待验 | `automute/gui_main.cpp`, `automute/gui_html.cpp` |
 | 声纹录入 / 存储 | ❌ | M2 | — |
 | 特征提取（fbank） | ✅ | dr_wav 读 wav → kaldi-native-fbank 算 80 维 fbank + 均值归一化 | `automute/audio/wav_io.cpp`, `automute/audio/embedder.cpp`, `third_party/dr_libs/`, `third_party/kaldi-native-fbank/` |
 | 声纹推理（ONNX Runtime C++） | ✅ | 全管线通：wav→fbank→ECAPA 模型→192 维 embedding（ORT 1.26，MinGW） | `automute/audio/embedder.cpp`, `third_party/onnxruntime/` |
