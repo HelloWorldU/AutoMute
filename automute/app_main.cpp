@@ -39,7 +39,10 @@ int main(int argc, char** argv) {
   std::string targetWav = "models/test_speakers/spkA_1272_1.wav";
   std::string model = "models/voxceleb_ECAPA512_LM.onnx";
   uint32_t procPid = 0; // 目标 App 的 PID（必填，--proc 指定）
-  const float THRESH = 0.5f;
+  // ── M3 调参旋钮 ──
+  const float THRESH = 0.5f;     // 相似度 > 阈值 判为目标
+  const float WINDOW_SEC = 1.5f; // 声纹判定窗长（越短越跟手、但越短越不准，有物理地板）
+  const float HOP_SEC = 0.25f;   // 每滑过这么久重判一次（滑动窗，不再清空重攒）
 
   // 参数解析：--apps 列进程；--proc 选目标 App；以 .onnx 结尾当模型，其余当目标 wav。
   for (int i = 1; i < argc; ++i) {
@@ -121,17 +124,28 @@ int main(int argc, char** argv) {
     ren.run(rbPlay, running, &muted);
   });
 
-  // 分析线程：攒窗→声纹→比对目标→设 muted
+  // 分析线程：滑动窗→声纹→比对目标→设 muted（M3.1：滑动窗+跳步，不清空重攒）
   std::thread anaThread([&] {
     std::vector<float> window;
     std::vector<float> chunk(4096);
+    size_t sinceEval = 0; // 距上次判定累计了多少新样本
     while (running.load()) {
       const uint32_t r = sampleRate.load();
-      const size_t windowLen = (size_t)(r * 1.5);
+      const size_t windowLen = (size_t)(r * WINDOW_SEC);
+      const size_t hopLen = (size_t)(r * HOP_SEC);
       size_t got = rbAna.read(chunk.data(), chunk.size());
-      if (got > 0)
-        window.insert(window.end(), chunk.begin(), chunk.begin() + got);
-      if (window.size() >= windowLen) {
+      if (got == 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        continue;
+      }
+      window.insert(window.end(), chunk.begin(), chunk.begin() + got);
+      sinceEval += got;
+      // 维持滑动窗：只保留最近 windowLen 个样本（旧的从头部丢掉）
+      if (window.size() > windowLen)
+        window.erase(window.begin(), window.end() - windowLen);
+      // 窗满 且 又滑过一个 hop，就重判一次
+      if (window.size() >= windowLen && sinceEval >= hopLen) {
+        sinceEval = 0;
         std::vector<float> e;
         std::string er;
         if (emb.embed(window, r, e, er)) {
@@ -139,9 +153,6 @@ int main(int argc, char** argv) {
           lastSim.store(sim);
           muted.store(sim > THRESH); // 是目标 → 掐声
         }
-        window.clear();
-      } else {
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
       }
     }
   });
