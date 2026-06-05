@@ -94,7 +94,7 @@ python scripts\make-test-speakers.py
 - **C++20** — 实时音频引擎自写（环形缓冲 / 无锁队列 / 低延迟线程）
 - **WASAPI** — Windows 系统音频 loopback 抓取、进程级 loopback、回放
 - **ONNX Runtime** — 预训练轻量声纹模型（wespeaker ECAPA-TDNN，VoxCeleb）
-- **WebView2** 经 [webview/webview](https://github.com/webview/webview) — GUI 外壳（C++ 后端 + HTML/CSS/JS 前端）
+- **WebView2** 经 [webview/webview](https://github.com/webview/webview) — GUI 外壳（C++ 后端 + **Vue 3 + Naive UI** 前端，构建成单文件嵌入；无边框自绘标题栏）
 - 未公开 **`IAudioPolicyConfig`** COM — 每应用输出路由（自动路由到 VB-CABLE，退出还原）
 
 ## License

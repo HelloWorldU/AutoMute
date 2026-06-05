@@ -103,7 +103,7 @@ python scripts\make-test-speakers.py
 - **C++20** — real-time audio engine written from scratch (ring buffer / lock-free queue / low-latency threads)
 - **WASAPI** — Windows system-audio loopback capture, per-process loopback, playback
 - **ONNX Runtime** — pretrained lightweight speaker model (wespeaker ECAPA-TDNN, VoxCeleb)
-- **WebView2** via [webview/webview](https://github.com/webview/webview) — GUI shell (C++ backend + HTML/CSS/JS front-end)
+- **WebView2** via [webview/webview](https://github.com/webview/webview) — GUI shell (C++ backend + **Vue 3 + Naive UI** front-end, built to a single embedded HTML; frameless custom title bar)
 - Undocumented **`IAudioPolicyConfig`** COM — per-app output routing (auto-route to VB-CABLE, restore on exit)
 
 ## License

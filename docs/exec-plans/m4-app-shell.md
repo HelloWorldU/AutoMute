@@ -58,25 +58,10 @@ GUI 驱动已有的 [`AutoMuteEngine`](../../automute/engine.h)（M4.1 已抽出
 | M4.3 | 路由模块：自动路由/还原（未公开 COM）+ VB-CABLE 检测/安装 + 兑底引导 | ✅ 已完成（a 检测 / b 路由还原 / c 接进 app_main；真机端到端 + 崩溃兜底验通） |
 | M4.4 | GUI 外壳（C++ webview / WebView2）：前端 HTML/CSS/JS，把选 App/抓取命名/静音开关/仪表/退出还原串起来 | ✅ **真机端到端验通**（v1 单人闭环：选 chrome→自动路由→在线抓取命名→相似度拉开→掐他生效）。见下「M4.4 对齐（已落地）」 |
 
-## M4.4 依赖获取（webview，gitignore 不入库，需手动 vendor）
+## webview 依赖（MinGW 关键点）
 
-`/third_party/` 被 gitignore（同 onnxruntime/kaldi）。webview 这样弄进来：
-
-```bash
-# 1) webview 0.12.0 单头（发布版就是单 webview.h；master 才拆多头）
-curl -sL https://github.com/webview/webview/archive/refs/tags/0.12.0.tar.gz | tar -xz -C /tmp
-cp /tmp/webview-0.12.0/core/include/webview/webview.h third_party/webview/include/
-# 2) WebView2 SDK 头（从 nuget .nupkg 解出，放 webview.h 同目录供其 #include "WebView2.h"）
-curl -sL https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.2792.45 -o /tmp/wv2.nupkg
-unzip -j /tmp/wv2.nupkg "build/native/include/WebView2.h" \
-  "build/native/include/WebView2EnvironmentOptions.h" -d third_party/webview/include/
-```
-
-MinGW 关键点（已验）：webview 默认 `MSWEBVIEW2_BUILTIN_IMPL`+`EXPLICIT_LINK` →
-**无需 .lib、无需 WebView2Loader.dll**（运行时已装即可）；只链 win 系统库
-（runtimeobject/ole32/oleaut32/version/shlwapi/shell32/gdi32/user32）。
-**套间坑**：先建 webview（占 STA）再建 AppRouter，否则 router 的 MTA 让 webview 抛
-`CoInitializeEx concurrency` 冲突。
+vendor 步骤已并入 [`scripts/fetch-deps.ps1`](../../scripts/fetch-deps.ps1)（webview 0.12 单头 + nuget WebView2 SDK 头）。
+MinGW 关键点（已验）：webview 默认 `MSWEBVIEW2_BUILTIN_IMPL`+`EXPLICIT_LINK` → **无需 .lib、无需 WebView2Loader.dll**（运行时已装即可），只链 win 系统库 + comctl32/dwmapi。
 
 ## M4.2 对齐（已钉，2026-06-04）
 
@@ -98,25 +83,13 @@ MinGW 关键点（已验）：webview 默认 `MSWEBVIEW2_BUILTIN_IMPL`+`EXPLICIT
 bool snapshotRecent(float seconds, std::vector<float>& outMono, uint32_t& sr);
 ```
 
-## M4.4 对齐（已落地，2026-06-05）
-
-动手前那几项"待深入对齐"已全部敲定并真机验通：
+## M4.4 对齐（已落地）
 
 | 决策点 | 落定 |
 |--------|------|
-| **前端栈** | 纯 HTML/CSS/JS 单页，**内嵌为 C++ 字符串**（`gui_html.cpp` 的 `kIndexHtml`，免运行时找文件、无构建步骤）。以后要换 Vue 等只换这段、C++ 绑定不动 |
-| **JS↔C++ 绑定** | `w.bind(name, fn)` 暴露 6 个动作：`listApps/start/stop/capture/setMuted/getStatus`（+ `renameTarget/removeTarget/cableStatus`）。JS 调 `window.xxx(...)` 得 Promise，C++ 返回 JSON 字符串（webview 自动 `JSON.parse` 给 JS 对象） |
-| **实时状态推送** | 前端**自调度 `setTimeout` 轮询** `getStatus`（不是 `setInterval`——无背压会雪崩，见下踩坑）。自适应间隔：运行 250ms / 闲置 2s |
-| **UI** | 选 App 下拉（按 PID 去重）+ 圈人命名 + 目标名单（相似度条 + 掐他/放行开关 + 点名改名 + ✕ 删）+ 顶部聚合仪表 🔇/🔊 |
-| **M4.3 路由细节** | IID 先试 `ab3d4648`(21H2+) 回退 `2a59116d`(本机 19044 命中)；还原时机 = **仅退出**（+ 启动 journal 兜底崩溃残留）；切换目标 App 不单独还原（v1 单 App） |
+| **JS↔C++ 绑定** | `w.bind(name, fn)` 暴露 9 个：`listApps/startEngine/stopEngine/capture/setMuted/renameTarget/removeTarget/getStatus/cableStatus`（+ 窗口控制 winMinimize/…）。JS 调 `window.xxx(...)` 得 Promise，C++ 返回 JSON（webview 自动 `JSON.parse`） |
+| **实时状态推送** | 前端 `setTimeout` **自调度**轮询 `getStatus`（非 `setInterval`）；自适应间隔 运行 250ms / 闲置 2s |
+| **前端栈** | M4.4 初版纯 HTML/CSS/JS 内嵌；UI 打磨阶段已迁 **Vue 3 + Naive UI**（构建单文件嵌入），详见 [`ui-polish.md`](ui-polish.md) |
+| **M4.3 路由细节** | IID 先试 `ab3d4648`(21H2+) 回退 `2a59116d`(本机 19044 命中)；还原时机 = **仅退出** + 启动 journal 兜底崩溃残留；v1 单 App 切换不单独还原 |
 
-### 真机踩坑清单（都已修，留作后人避雷）
-
-| 坑 | 根因 | 修法 |
-|---|------|------|
-| 起窗口即抛 `CoInitializeEx concurrency` | AppRouter 先把 UI 线程设 MTA，webview 要 STA | **先建 webview 占 STA** 再建 AppRouter（其 RoInit 拿 `RPC_E_CHANGED_MODE`，已容忍） |
-| 点「抓取」无反应/卡死 | 前端 JS 函数 `capture()` 与绑定 `window.capture` 同名 → 无限递归 | 前端处理函数名不得与绑定同名，改 `onCapture` |
-| 下拉同一 App 出现两次 | 路由后 Windows 留过期会话残骸 | 前端按 PID 去重，优先"出声中"那条 |
-| 开关要点很多次才灵 | 每轮询全量重建 DOM，按钮被销毁吃掉点击 | 仅数量变化时重建结构，其余**原地更新** |
-| 闲置 CPU 越转越狂 | `setInterval` 无背压，异步轮询超时即重叠 → 正反馈雪崩 | 改 `setTimeout` **自调度**（完成驱动闭环）+ 自适应间隔 |
-| 删目标可能悬空崩溃 | 分析线程原在锁外用裸指针比对 | 分析线程改**持锁比对**（cosine 很便宜），删除在锁内 erase |
+> 真机踩坑（命名撞车、轮询雪崩、套间、删目标悬空、WebView2 盖窗等）已汇总到 [`../STATUS.md`](../STATUS.md) 的「踩坑」一节。
