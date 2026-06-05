@@ -57,7 +57,7 @@ const char* kIndexHtml = R"HTML(<!DOCTYPE html>
     <label class="cap">圈人 · 边看边登记（说话时点）</label>
     <div class="row">
       <input id="name" placeholder="名字（可留空自动命名）">
-      <button onclick="capture()">抓取当前说话人</button>
+      <button onclick="onCapture()">抓取当前说话人</button>
     </div>
     <div id="capMsg" class="muted"></div>
   </section>
@@ -69,24 +69,35 @@ const char* kIndexHtml = R"HTML(<!DOCTYPE html>
 
 <script>
 let running = false;
+let targetEls = []; // 缓存每行的元素引用，避免每次轮询重建 DOM（重建会吃掉点击）
 
 function show(id, t){ document.getElementById(id).textContent = t; }
 
 async function refreshApps(){
   const apps = await window.listApps();
-  const sel = document.getElementById('apps');
-  sel.innerHTML = '';
+  // 按 PID 去重：同一进程可能在多个设备留有会话（含路由后的过期残骸），
+  // 优先保留"出声中"的那条，避免下拉里同一 App 出现两次。
+  const byPid = new Map();
   for(const a of apps){
+    const cur = byPid.get(a.pid);
+    if(!cur || (a.active && !cur.active)) byPid.set(a.pid, a);
+  }
+  const uniq = [...byPid.values()];
+  const sel = document.getElementById('apps');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  for(const a of uniq){
     const o = document.createElement('option');
     o.value = a.pid;
     o.textContent = `${a.name} · PID ${a.pid} ${a.active?'· 出声中':''} → ${a.device}`;
     sel.appendChild(o);
   }
-  if(!apps.length){
+  if(!uniq.length){
     const o = document.createElement('option');
     o.textContent = '（没有在出声的进程，先让目标 App 放声音再刷新）';
     sel.appendChild(o);
   }
+  if(prev) sel.value = prev; // 刷新后尽量保持原选择
 }
 
 async function toggleRun(){
@@ -106,7 +117,7 @@ async function toggleRun(){
   }
 }
 
-async function capture(){
+async function onCapture(){
   if(!running){ show('capMsg','先点「开始」再抓取'); return; }
   const name = document.getElementById('name').value.trim();
   const r = await window.capture(name);
@@ -119,26 +130,42 @@ async function toggleMute(idx, on){ await window.setMuted(idx, on); }
 function renderTargets(s){
   const box = document.getElementById('targets');
   if(!s.targets.length){
+    targetEls = [];
     box.className='muted';
     box.textContent = running ? '开始了，在某人说话时点「抓取当前说话人」登记。'
                               : '还没登记目标。';
     return;
   }
-  box.className='';
-  box.innerHTML='';
+  // 只有目标【数量变化】时才重建结构；否则原地更新，按钮元素稳定不被销毁。
+  if(targetEls.length !== s.targets.length){
+    box.className='';
+    box.innerHTML='';
+    targetEls = s.targets.map((t,i)=>{
+      const row = document.createElement('div'); row.className='tgt';
+      row.innerHTML = `<span class="nm"></span>`
+        + `<div class="bar"><i></i></div>`
+        + `<span class="sim muted" style="width:42px;text-align:right"></span>`
+        + `<span class="pill"></span>`;
+      const btn = document.createElement('button');
+      // 点击时按按钮自己缓存的当前状态取反，不依赖闭包里的旧值。
+      btn.onclick = ()=> toggleMute(i, btn.dataset.muted !== '1');
+      row.appendChild(btn);
+      box.appendChild(row);
+      return { nm: row.querySelector('.nm'), bar: row.querySelector('.bar > i'),
+               sim: row.querySelector('.sim'), pill: row.querySelector('.pill'), btn };
+    });
+  }
+  // 每次轮询只改动态字段（条宽/数值/开关），不动元素本身。
   s.targets.forEach((t,i)=>{
-    const pct = Math.max(0, Math.min(1, t.sim))*100;
-    const row = document.createElement('div'); row.className='tgt';
-    row.innerHTML = `<span class="nm" title="${t.name}">${t.name}</span>`
-      + `<div class="bar"><i style="width:${pct}%"></i></div>`
-      + `<span class="muted" style="width:42px;text-align:right">${t.sim.toFixed(2)}</span>`
-      + `<span class="pill ${t.muted?'on':''}">${t.muted?'静音中':'放行'}</span>`;
-    const btn = document.createElement('button');
-    btn.className = t.muted ? 'ghost' : '';
-    btn.textContent = t.muted ? '关掉' : '掐他';
-    btn.onclick = ()=> toggleMute(i, !t.muted);
-    row.appendChild(btn);
-    box.appendChild(row);
+    const e = targetEls[i];
+    e.nm.textContent = t.name; e.nm.title = t.name;
+    e.bar.style.width = (Math.max(0, Math.min(1, t.sim))*100) + '%';
+    e.sim.textContent = t.sim.toFixed(2);
+    e.pill.textContent = t.muted ? '静音中' : '放行';
+    e.pill.className = 'pill' + (t.muted ? ' on' : '');
+    e.btn.textContent = t.muted ? '关掉' : '掐他';
+    e.btn.className = t.muted ? 'ghost' : '';
+    e.btn.dataset.muted = t.muted ? '1' : '0';
   });
 }
 

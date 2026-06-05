@@ -18,7 +18,7 @@
 | **M1** | 打通 C++ 实时音频脊梁：WASAPI loopback 抓系统声音 → 原样回放，测出端到端延迟，加手动静音开关 | ✅ 闭环跑通，管线缓冲稳定 ~20ms |
 | M2 | 接入声纹识别：录入目标样本 → ONNX 推理 embedding → 实时比对 → 命中即掐 | ✅ 全子步骤完成，自动掐声真机验证通过（见 P2.4），详见 [`exec-plans/m2-speaker-id.md`](exec-plans/m2-speaker-id.md) |
 | M3 | 调优：压短判断窗口、VAD 抗噪、阈值调参，让开头泄漏收窄 | 🅿️ 暂告段落：M3.1✅ 滑动窗；M3.4🛑 窗长地板≈1.5s（缩窗反噬）；VAD/迟滞边际小暂缓 |
-| M4 | app 壳（产品化 P3+P4+P5）：配置持久化 + enroll UX + GUI | 🚧 进行中（M4.1 抽 `AutoMuteEngine` 完成） |
+| M4 | app 壳（产品化 P3+P4+P5）：配置持久化 + enroll UX + GUI | 🚧 v1 单人闭环真机验通（M4.1 引擎解耦 / M4.2 多目标+快照 / M4.3 自动路由 / M4.4 GUI 全部✅）。剩 UX 打磨 + v1.1 多人/持久化 |
 
 ## M4 子步骤
 
@@ -30,7 +30,7 @@
 | M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦）：`prepare(cfg)`→`start(pid)`→轮询 `similarity()/muted()`→`stop()`，引擎不做 UI 输出。CLI 改薄前端 | ✅ `automute/engine.{h,cpp}`，行为不变，冒烟通过 |
 | M4.2 | 引擎扩展：单目标→多目标（按 N 设计，v1=1）+ 暴露"最近 N 秒快照"API（在线抓取登记的地基） | ✅ 引擎扩展完成：多目标列表（聚合 max+per-target getters，任一开静音命中即掐）+ `snapshotRecent()`（抓取线程维护 5s mono 历史环，加锁拷）+ 运行中 `addTarget`。CLI 加热键 c/1-9 冰测；构建通过、快照环形数学单测通过、`--apps` 跑通。真机多目标/在线抓取待用户验 |
 | M4.3 | 路由模块：未公开 `IAudioPolicyConfig` COM 自动路由/还原每应用输出 + VB-CABLE 检测/安装 + 失败兑底引导 | ✅ 独立 `AppRouter` 模块（M4.3a 检测 + M4.3b 路由/还原 + M4.3c 接进 app_main）。真机端到端验证：自动路由 QQMusic→CABLE、引擎运行、强杀留 journal→下次启动 recoverStaleRoutes 恢复到扬声器、journal 清除。失败逐级回退引导手动 |
-| M4.4 | GUI 外壳（C++ webview / WebView2，前端 HTML/CSS/JS）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | 🚧 骨架完成：webview 0.12 单头 vendor（MinGW+WebView2 编译/链接/起窗口验通，无需 .lib/Loader.dll）；前端单页 HTML/CSS/JS + `listApps/start/stop/capture/setMuted/getStatus` 6 个 bind，驱动引擎+路由；启动存活验证✓。**踩坑**：先建 webview 占 STA 再建 AppRouter，否则 MTA/STA 套间冲突 webview 抛异常。真机交互/听感待用户验 |
+| M4.4 | GUI 外壳（C++ webview / WebView2，前端 HTML/CSS/JS）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | ✅ **真机端到端验通**（单人直播闭环：选 chrome→自动路由 CABLE→在线抓取命名→相似度拉开 0.62 vs 异人→掐他生效）。webview 0.12 单头 vendor，6 个 bind 驱动引擎+路由，前端 250ms 轮询。**踩坑**：①先建 webview 占 STA 再建 AppRouter（否则套间冲突）②前端 JS 函数名不能与 C++ 绑定同名（`capture` 撞车致无限递归，已改 `onCapture`）③下拉按 PID 去重（路由后 Windows 留过期会话残骸）。真机也验到强杀后 recoverStaleRoutes 自动还原路由。**待打磨**：抓取后改名（现"先抓后命名"会建重复目标，见 backlog） |
 
 ## M3 子步骤
 
