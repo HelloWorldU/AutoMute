@@ -9,12 +9,33 @@ import {
 } from 'naive-ui'
 import type { AppInfo, Status } from './webview'
 
+// —— 设计令牌（精致暗色 · 现代极简）——
 const themeOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#5b8cff', primaryColorHover: '#74a0ff',
-    primaryColorPressed: '#4a7bef', borderRadius: '8px',
-    bodyColor: '#1a1b1e', cardColor: '#232428',
+    bodyColor: '#161719',
+    cardColor: '#1d1e22',
+    popoverColor: '#202126',
+    borderColor: 'rgba(255,255,255,0.08)',
+    primaryColor: '#6b7bff', primaryColorHover: '#828fff',
+    primaryColorPressed: '#5a69f0', primaryColorSuppl: '#6b7bff',
+    infoColor: '#6b7bff', infoColorHover: '#828fff', infoColorPressed: '#5a69f0',
+    errorColor: '#e5484d', errorColorHover: '#ec5f63', errorColorPressed: '#d83a40',
+    textColorBase: '#e8e9ec', textColor1: '#e8e9ec',
+    textColor2: '#b3b7be', textColor3: '#71767e',
+    borderRadius: '9px', borderRadiusSmall: '6px',
+    fontSize: '14px', fontWeightStrong: '600',
   },
+  Card: {
+    paddingSmall: '13px 15px 15px', titleFontSizeSmall: '12px',
+    titleFontWeight: '600', titleTextColor: '#8b9099',
+    borderColor: 'rgba(255,255,255,0.07)', color: '#1d1e22',
+  },
+  Button: { borderRadiusMedium: '8px', borderRadiusSmall: '7px', fontWeightStrong: '500' },
+  Input: { borderRadius: '8px', color: '#141519', colorFocus: '#141519' },
+  InternalSelection: { borderRadius: '8px', color: '#141519' },
+  Progress: { railColor: 'rgba(255,255,255,0.06)' },
+  Tag: { borderRadius: '6px' },
+  Alert: { borderRadius: '9px' },
 }
 
 const apps = ref<AppInfo[]>([])
@@ -228,8 +249,13 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
 
 <style>
 html, body, #app { height: 100%; }
-body { margin: 0; background: #1a1b1e; color: #e3e3e6;
-       font-family: 'Segoe UI', system-ui, sans-serif; }
+body { margin: 0; background: #161719; color: #e8e9ec;
+       font-family: 'Segoe UI', system-ui, sans-serif;
+       -webkit-font-smoothing: antialiased; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 5px;
+       border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); background-clip: content-box; }
 .shell { height: 100vh; display: flex; flex-direction: column; overflow: hidden;
          position: relative; }
 
@@ -245,37 +271,44 @@ body { margin: 0; background: #1a1b1e; color: #e3e3e6;
 .rz-br { bottom: 0; right: 0; width: 8px; height: 8px; cursor: nwse-resize; }
 
 /* 自绘标题栏 */
-.titlebar { height: 36px; flex: none; display: flex; align-items: center;
+.titlebar { height: 38px; flex: none; display: flex; align-items: center;
             justify-content: space-between; user-select: none;
-            border-bottom: 1px solid #2c2d31; }
-.tb-left { display: flex; align-items: baseline; gap: 10px; padding-left: 14px; }
-.logo { font-size: 15px; font-weight: 700; letter-spacing: .3px; }
-.agg { font-size: 12px; color: #9aa0a6; }
+            background: #131416; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.tb-left { display: flex; align-items: center; gap: 9px; padding-left: 14px; }
+.logo { font-size: 14px; font-weight: 650; letter-spacing: .2px;
+        display: flex; align-items: center; gap: 8px; }
+.logo::before { content: ''; width: 8px; height: 8px; border-radius: 50%;
+        background: linear-gradient(135deg, #6b7bff, #9b6bff);
+        box-shadow: 0 0 8px rgba(107,123,255,.6); }
+.agg { font-size: 12px; color: #8b9099; font-variant-numeric: tabular-nums; }
 .tb-ctrls { display: flex; height: 100%; }
-.wc { width: 44px; height: 100%; border: 0; background: transparent; color: #c8c9cd;
+.wc { width: 46px; height: 100%; border: 0; background: transparent; color: #b3b7be;
       font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets'; font-size: 10px;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
-      transition: background .12s; }
-.wc:hover { background: #2c2d31; }
-.wc.close:hover { background: #c0392b; color: #fff; }
+      transition: background .12s, color .12s; }
+.wc:hover { background: rgba(255,255,255,0.07); color: #e8e9ec; }
+.wc.close:hover { background: #e5484d; color: #fff; }
 
 /* 内容区（可滚动） */
 .body { flex: 1; overflow: auto; padding: 14px; display: flex;
-        flex-direction: column; gap: 12px; min-width: 0; }
+        flex-direction: column; gap: 11px; min-width: 0; }
 .banner { font-size: 13px; }
 .card { min-width: 0; }
 .row { display: flex; align-items: center; gap: 8px; }
 .grow { flex: 1; min-width: 0; }
-.rmsg, .capmsg { font-size: 13px; }
-.capmsg { display: block; margin-top: 8px; }
-.tgts { display: flex; flex-direction: column; }
-.tgt { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
-.tgt + .tgt { border-top: 1px solid #2c2d31; }
-.nm, .nm-edit { width: 84px; flex: none; }
-.nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.nm:hover { text-decoration: underline dotted #9aa0a6; }
+.rmsg, .capmsg { font-size: 12.5px; color: #8b9099; }
+.capmsg { display: block; margin-top: 9px; }
+.tgts { display: flex; flex-direction: column; margin: -3px -6px; }
+.tgt { display: flex; align-items: center; gap: 10px; padding: 8px 6px;
+       border-radius: 7px; transition: background .12s; }
+.tgt:hover { background: rgba(255,255,255,0.03); }
+.nm, .nm-edit { width: 82px; flex: none; }
+.nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+      font-size: 13.5px; }
+.nm:hover { color: #6b7bff; }
 .bar { flex: 1; min-width: 40px; }
-.sim { width: 38px; text-align: right; font-size: 13px; color: #9aa0a6;
+.sim { width: 38px; text-align: right; font-size: 12.5px; color: #8b9099;
        font-variant-numeric: tabular-nums; }
-.del { color: #9aa0a6; }
+.del { color: #71767e; }
+.del:hover { color: #e5484d; }
 </style>

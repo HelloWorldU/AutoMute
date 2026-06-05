@@ -139,6 +139,9 @@ void makeFrameless(HWND hwnd) {
   SetWindowSubclass(hwnd, frameProc, 1, 0);
   MARGINS m{0, 0, 0, 1};
   DwmExtendFrameIntoClientArea(hwnd, &m); // 无边框也有投影
+  // Win11 圆角（DWMWA_WINDOW_CORNER_PREFERENCE=33 / DWMWCP_ROUND=2）；Win10 静默忽略。
+  DWORD corner = 2;
+  DwmSetWindowAttribute(hwnd, 33, &corner, sizeof(corner));
   SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 }
