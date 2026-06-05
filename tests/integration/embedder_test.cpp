@@ -28,10 +28,11 @@ TEST_CASE("声纹管线：同人相似度高、异人低、区分度大") {
   std::string err;
   REQUIRE_MESSAGE(emb.load(P("models/voxceleb_ECAPA512_LM.onnx"), err), err);
 
+  // 样本 wav 是提交的测试夹具（tests/data/，小）；模型太大走 fetch-deps。
   std::vector<float> a1, a2, b;
-  REQUIRE(emb.embedWav(P("models/test_speakers/spkA_1272_1.wav"), a1, err));
-  REQUIRE(emb.embedWav(P("models/test_speakers/spkA_1272_2.wav"), a2, err));
-  REQUIRE(emb.embedWav(P("models/test_speakers/spkB_2277.wav"), b, err));
+  REQUIRE(emb.embedWav(P("tests/data/spkA_1272_1.wav"), a1, err));
+  REQUIRE(emb.embedWav(P("tests/data/spkA_1272_2.wav"), a2, err));
+  REQUIRE(emb.embedWav(P("tests/data/spkB_2277.wav"), b, err));
 
   CHECK(a1.size() == 192);
   float same = cosineSimilarity(a1, a2); // 同人，实测 ~0.8

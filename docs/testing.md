@@ -29,7 +29,7 @@ ctest --test-dir build --output-on-failure        # Tier 1 + 2
 powershell -ExecutionPolicy Bypass -File tests\smoke\smoke.ps1   # Tier 3（含上面两层）
 ```
 
-测试夹具：声纹样本复用 `models/test_speakers/`（spkA 同人 ×2 + spkB 异人）；模型路径经编译期宏 `AUTOMUTE_ROOT` 注入，与 cwd 无关。
+测试夹具：声纹样本 wav 在 `tests/data/`（spkA 同人 ×2 + spkB 异人，已入库，小）；模型 24MB 太大走 fetch-deps（`models/`）。路径经编译期宏 `AUTOMUTE_ROOT` 注入，与 cwd 无关。
 
 ## CI（GitHub Actions）
 
