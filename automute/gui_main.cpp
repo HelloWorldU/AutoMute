@@ -171,6 +171,20 @@ int main() {
     return "{\"ok\":true}";
   });
 
+  w.bind("renameTarget", [&app](const std::string& req) -> std::string {
+    size_t idx = (size_t)std::stoul("0" + arg(req, 0));
+    std::string name = arg(req, 1);
+    if (!name.empty())
+      app.engine.renameTarget(idx, name);
+    return "{\"ok\":true}";
+  });
+
+  w.bind("removeTarget", [&app](const std::string& req) -> std::string {
+    size_t idx = (size_t)std::stoul("0" + arg(req, 0));
+    app.engine.removeTarget(idx);
+    return "{\"ok\":true}";
+  });
+
   w.bind("getStatus",
          [&app](const std::string&) -> std::string { return statusJson(app); });
 

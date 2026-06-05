@@ -68,6 +68,9 @@ public:
                        std::string& err);
   // 切换某目标的静音开关（idx 越界忽略）。
   void setTargetMuted(size_t idx, bool on);
+  // 改名 / 删除某目标（idx 越界忽略；运行中可调，线程安全）。
+  void renameTarget(size_t idx, const std::string& name);
+  void removeTarget(size_t idx);
   size_t targetCount() const;
   // 取某目标的对外快照（idx 越界返回空 name 的视图）。
   TargetView targetAt(size_t idx) const;
@@ -104,8 +107,9 @@ private:
   Embedder emb_;
   bool prepared_ = false;
 
-  // 目标列表：用 unique_ptr 因 Target 含原子不可移动；只增不删（v1），
-  // 故分析线程拷出裸指针后无锁使用指针稳定有效。
+  // 目标列表：用 unique_ptr 因 Target 含原子不可移动。支持增/改/删，
+  // 全程受 targetsMu_ 保护；分析线程比对时也持锁（cosine 很便宜），
+  // 故删除目标不会让分析线程拿到悬空指针。
   mutable std::mutex targetsMu_;
   std::vector<std::unique_ptr<Target>> targets_;
 

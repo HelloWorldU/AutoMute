@@ -61,6 +61,18 @@ void AutoMuteEngine::setTargetMuted(size_t idx, bool on) {
     targets_[idx]->muted.store(on);
 }
 
+void AutoMuteEngine::renameTarget(size_t idx, const std::string& name) {
+  std::lock_guard<std::mutex> lk(targetsMu_);
+  if (idx < targets_.size())
+    targets_[idx]->name = name;
+}
+
+void AutoMuteEngine::removeTarget(size_t idx) {
+  std::lock_guard<std::mutex> lk(targetsMu_);
+  if (idx < targets_.size())
+    targets_.erase(targets_.begin() + idx);
+}
+
 size_t AutoMuteEngine::targetCount() const {
   std::lock_guard<std::mutex> lk(targetsMu_);
   return targets_.size();
@@ -194,25 +206,22 @@ bool AutoMuteEngine::start(uint32_t pid, std::string& err) {
         sinceEval = 0;
         std::vector<float> e;
         std::string er;
-        if (!emb_.embed(window, r, e, er))
+        if (!emb_.embed(window, r, e, er)) // 慢（ONNX）：放在锁外
           continue;
-        // 在锁内拷出目标裸指针（只增不删→指针稳定），锁外算相似度。
-        std::vector<Target*> snap;
-        {
-          std::lock_guard<std::mutex> lk(targetsMu_);
-          snap.reserve(targets_.size());
-          for (auto& up : targets_)
-            snap.push_back(up.get());
-        }
+        // 持锁比对每个目标（cosine 很便宜），这样改名/删除目标都安全——
+        // 删除在锁内 erase，分析线程不会拿到悬空指针。
         float best = 0.0f;
         bool anyMute = false;
-        for (Target* t : snap) {
-          float sim = cosineSimilarity(e, t->emb);
-          t->lastSim.store(sim);
-          if (sim > best)
-            best = sim;
-          if (t->muted.load() && sim > cfg_.threshold)
-            anyMute = true; // 开了静音的目标命中 → 掐
+        {
+          std::lock_guard<std::mutex> lk(targetsMu_);
+          for (auto& up : targets_) {
+            float sim = cosineSimilarity(e, up->emb);
+            up->lastSim.store(sim);
+            if (sim > best)
+              best = sim;
+            if (up->muted.load() && sim > cfg_.threshold)
+              anyMute = true; // 开了静音的目标命中 → 掐
+          }
         }
         lastSim_.store(best);
         muted_.store(anyMute);

@@ -30,7 +30,7 @@
 | M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦）：`prepare(cfg)`→`start(pid)`→轮询 `similarity()/muted()`→`stop()`，引擎不做 UI 输出。CLI 改薄前端 | ✅ `automute/engine.{h,cpp}`，行为不变，冒烟通过 |
 | M4.2 | 引擎扩展：单目标→多目标（按 N 设计，v1=1）+ 暴露"最近 N 秒快照"API（在线抓取登记的地基） | ✅ 引擎扩展完成：多目标列表（聚合 max+per-target getters，任一开静音命中即掐）+ `snapshotRecent()`（抓取线程维护 5s mono 历史环，加锁拷）+ 运行中 `addTarget`。CLI 加热键 c/1-9 冰测；构建通过、快照环形数学单测通过、`--apps` 跑通。真机多目标/在线抓取待用户验 |
 | M4.3 | 路由模块：未公开 `IAudioPolicyConfig` COM 自动路由/还原每应用输出 + VB-CABLE 检测/安装 + 失败兑底引导 | ✅ 独立 `AppRouter` 模块（M4.3a 检测 + M4.3b 路由/还原 + M4.3c 接进 app_main）。真机端到端验证：自动路由 QQMusic→CABLE、引擎运行、强杀留 journal→下次启动 recoverStaleRoutes 恢复到扬声器、journal 清除。失败逐级回退引导手动 |
-| M4.4 | GUI 外壳（C++ webview / WebView2，前端 HTML/CSS/JS）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | ✅ **真机端到端验通**（单人直播闭环：选 chrome→自动路由 CABLE→在线抓取命名→相似度拉开 0.62 vs 异人→掐他生效）。webview 0.12 单头 vendor，6 个 bind 驱动引擎+路由，前端 250ms 轮询。**踩坑**：①先建 webview 占 STA 再建 AppRouter（否则套间冲突）②前端 JS 函数名不能与 C++ 绑定同名（`capture` 撞车致无限递归，已改 `onCapture`）③下拉按 PID 去重（路由后 Windows 留过期会话残骸）。真机也验到强杀后 recoverStaleRoutes 自动还原路由。**待打磨**：抓取后改名（现"先抓后命名"会建重复目标，见 backlog） |
+| M4.4 | GUI 外壳（C++ webview / WebView2，前端 HTML/CSS/JS）：选 App 下拉 + 边看边圈抓取命名 + 一键静音开关 + 相似度仪表/🔇🔊 + 退出还原 | ✅ **真机端到端验通**（单人直播闭环：选 chrome→自动路由 CABLE→在线抓取命名→相似度拉开 0.62 vs 异人→掐他生效）。webview 0.12 单头 vendor，6 个 bind 驱动引擎+路由，前端 250ms 轮询。**踩坑**：①先建 webview 占 STA 再建 AppRouter（否则套间冲突）②前端 JS 函数名不能与 C++ 绑定同名（`capture` 撞车致无限递归，已改 `onCapture`）③下拉按 PID 去重（路由后 Windows 留过期会话残骸）。真机也验到强杀后 recoverStaleRoutes 自动还原路由。UX 打磨：点目标名字原地改名（`renameTarget`）、✕ 删目标（`removeTarget`）——分析线程改为持锁比对，删除不悬空 |
 
 ## M3 子步骤
 

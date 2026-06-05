@@ -30,7 +30,13 @@ const char* kIndexHtml = R"HTML(<!DOCTYPE html>
   .tgt { display:flex; align-items:center; gap:10px; padding:8px 0;
          border-top:1px solid #3a3b40; }
   .tgt:first-child { border-top:0; }
-  .tgt .nm { width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tgt .nm { width:78px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+             cursor:pointer; }
+  .tgt .nm:hover { text-decoration:underline dotted #9aa0a6; }
+  .tgt .nm input { width:76px; background:#1e1f22; color:#e3e3e6;
+                   border:1px solid #3b6ef0; border-radius:4px; padding:1px 4px; font-size:13px; }
+  .tgt .x { background:transparent; color:#9aa0a6; padding:6px 8px; }
+  .tgt .x:hover { background:#3a3b40; color:#e3e3e6; }
   .bar { flex:1; height:10px; background:#1e1f22; border-radius:5px; overflow:hidden; }
   .bar > i { display:block; height:100%; background:#3b6ef0; width:0%; transition:width .15s; }
   .pill { font-size:12px; padding:3px 8px; border-radius:12px; background:#3a3b40; }
@@ -121,11 +127,36 @@ async function onCapture(){
   if(!running){ show('capMsg','先点「开始」再抓取'); return; }
   const name = document.getElementById('name').value.trim();
   const r = await window.capture(name);
-  show('capMsg', r.ok ? `已登记 #${r.idx}，在下方打开它的开关即可掐` : ('抓取失败：'+r.msg));
+  show('capMsg', r.ok ? `已登记 #${r.idx}：点它的名字可改名、✕ 可删、开关掐他` : ('抓取失败：'+r.msg));
   if(r.ok) document.getElementById('name').value='';
 }
 
 async function toggleMute(idx, on){ await window.setMuted(idx, on); }
+
+// 点名字 → 原地变输入框，回车/失焦提交改名，Esc 取消。
+function startRename(idx, nmEl){
+  if(nmEl.dataset.editing === '1') return;
+  nmEl.dataset.editing = '1';
+  const old = nmEl.textContent;
+  const inp = document.createElement('input');
+  inp.value = old;
+  nmEl.textContent = '';
+  nmEl.appendChild(inp);
+  inp.focus(); inp.select();
+  let done = false;
+  const finish = async (commit)=>{
+    if(done) return; done = true;
+    const v = inp.value.trim();
+    nmEl.dataset.editing = '0';
+    nmEl.textContent = (commit && v) ? v : old;
+    if(commit && v && v !== old) await window.renameTarget(idx, v);
+  };
+  inp.onkeydown = (ev)=>{
+    if(ev.key === 'Enter') finish(true);
+    else if(ev.key === 'Escape') finish(false);
+  };
+  inp.onblur = ()=> finish(true);
+}
 
 function renderTargets(s){
   const box = document.getElementById('targets');
@@ -142,23 +173,29 @@ function renderTargets(s){
     box.innerHTML='';
     targetEls = s.targets.map((t,i)=>{
       const row = document.createElement('div'); row.className='tgt';
-      row.innerHTML = `<span class="nm"></span>`
+      row.innerHTML = `<span class="nm" title="点击改名"></span>`
         + `<div class="bar"><i></i></div>`
         + `<span class="sim muted" style="width:42px;text-align:right"></span>`
         + `<span class="pill"></span>`;
+      const nm = row.querySelector('.nm');
+      nm.onclick = ()=> startRename(i, nm);
       const btn = document.createElement('button');
       // 点击时按按钮自己缓存的当前状态取反，不依赖闭包里的旧值。
       btn.onclick = ()=> toggleMute(i, btn.dataset.muted !== '1');
-      row.appendChild(btn);
+      const del = document.createElement('button');
+      del.className='x'; del.textContent='✕'; del.title='删除目标';
+      del.onclick = ()=> window.removeTarget(i);
+      row.appendChild(btn); row.appendChild(del);
       box.appendChild(row);
-      return { nm: row.querySelector('.nm'), bar: row.querySelector('.bar > i'),
+      return { nm, bar: row.querySelector('.bar > i'),
                sim: row.querySelector('.sim'), pill: row.querySelector('.pill'), btn };
     });
   }
   // 每次轮询只改动态字段（条宽/数值/开关），不动元素本身。
   s.targets.forEach((t,i)=>{
     const e = targetEls[i];
-    e.nm.textContent = t.name; e.nm.title = t.name;
+    // 正在改名时别覆盖输入框（否则每 250ms 把你打的字冲掉）。
+    if(e.nm.dataset.editing !== '1') e.nm.textContent = t.name;
     e.bar.style.width = (Math.max(0, Math.min(1, t.sim))*100) + '%';
     e.sim.textContent = t.sim.toFixed(2);
     e.pill.textContent = t.muted ? '静音中' : '放行';
