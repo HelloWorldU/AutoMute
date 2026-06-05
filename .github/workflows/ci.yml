@@ -1,0 +1,51 @@
+# CI：每次 push / PR 到 main，在干净的 Windows runner 上拉依赖→编译全部目标→跑 ctest。
+# 只跑能 headless 的部分（单元 + 声纹集成）；GUI 启动/真机掐声需显示器+声卡，留人工清单。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0} # 默认用 MSYS2 MinGW shell（与本地工具链一致）
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 MSYS2 + MinGW 工具链
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            git
+
+      # third_party/ 与 models/ 体积大、可重新获取（gitignore），缓存加速。
+      - name: 缓存第三方依赖
+        uses: actions/cache@v4
+        with:
+          path: |
+            third_party
+            models
+          key: deps-${{ hashFiles('scripts/fetch-deps.ps1') }}
+
+      - name: 拉取依赖（ONNX/kaldi/dr_wav/模型/webview/doctest）
+        shell: pwsh
+        run: ./scripts/fetch-deps.ps1
+
+      - name: 配置
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: 编译全部目标（含 GUI，验证能编不启动）
+        run: cmake --build build
+
+      - name: 测试（ctest：单元 + 声纹集成）
+        run: ctest --test-dir build --output-on-failure

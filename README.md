@@ -8,6 +8,7 @@
 
 A hands-on project for learning C++ in depth: real-time audio, WASAPI, lock-free pipelines, ONNX inference.
 
+[![CI](https://github.com/HelloWorldU/AutoMute/actions/workflows/ci.yml/badge.svg)](https://github.com/HelloWorldU/AutoMute/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/HelloWorldU/AutoMute)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)](https://github.com/HelloWorldU/AutoMute)
 [![C++](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
