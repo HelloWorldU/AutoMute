@@ -25,8 +25,8 @@
 
 | | |
 |---|---|
-| **In** | 新前端工程（框架+TS+Vite，构建成单文件嵌入）；窗口尺寸/最小尺寸（`gui_main.cpp` 的 `set_size`/min hint）；响应式；空/错/加载态；前端构建管线 + 文档/gitignore |
-| **Out** | 功能逻辑与 9 个 C++ 绑定的调用契约（不动）；多人名单/持久化（那是 v1.1 **功能**线，另算）；声学/引擎 |
+| **In** | 新前端工程（Vue+Naive+TS+Vite，构建成单文件嵌入）；前端构建管线 + 文档/gitignore；响应式 + 空/错/加载态；**窗口外壳**（无边框 + 自绘标题栏 → 改 HWND 样式/子类化 WndProc + min/max/close 绑定，**对"C++ 零改动"的明确例外**） |
+| **Out** | 现有 9 个 C++ 绑定的**调用契约**不动（只新增 winMinimize/winToggleMaximize/winClose/winDrag）；功能逻辑/引擎/声学不动；多人名单/持久化（v1.1 **功能**线，另算） |
 
 ## 决策点（动手前对齐，带推荐）
 
@@ -66,11 +66,12 @@ frontend/                      ← 新前端工程（Vue/React/Svelte + TS + Vit
 
 | # | 目标 | 要点 |
 |---|------|------|
-| **U0 打通框架管线** | 选定栈 → "hello framework" 跑进 webview | scaffold `frontend/`（Vite+TS+所选框架+UI 库）；`webview.d.ts` 声明绑定；构建→单文件→嵌入 `kIndexHtml` 的生成步骤；验证窗口能显示 + 一个绑定（如 `listApps`）通。**先把管线钉死再写界面** |
-| **U1 复刻现有功能** | 用框架组件重建当前界面 | 选 App / 抓取命名 / 目标名单（仪表条+开关+改名+删）/ 聚合仪表 / banner —— 功能对齐现状，顺手修布局 bug（溢出/最小尺寸/响应式） |
+| **U0 打通框架管线** | Vue 工程 → "hello Vue" 跑进 webview | scaffold `frontend/`（Vite+TS+Vue+Naive UI）；`webview.d.ts` 声明 9 个绑定；**独立脚本** `dist/index.html → kIndexHtml`；验证窗口显示 + 一个绑定（`listApps`）通。**先把管线钉死再写界面** |
+| **U1 复刻现有功能** | 用 Vue/Naive 组件重建当前界面 | 选 App / 抓取命名 / 目标名单（仪表条+开关+改名+删）/ 聚合仪表 / banner —— 功能对齐现状，顺手修布局 bug（溢出/最小尺寸/响应式） |
+| **Uw 窗口外壳** | 无边框 + 自绘标题栏 | 改 HWND 样式去原生标题栏（留缩放）；子类化 WndProc 处理 NCCALCSIZE/NCHITTEST；前端标题栏 + min/max/close（`winMinimize/winToggleMaximize/winClose` 绑定 + `app-region:drag`）。**唯一动 C++ 的一步，先小窗验证** |
 | **U2 设计语言** | 主题与组件精致化 | 暗色主题 + 设计令牌（色板/间距/圆角/阴影/字号）；按钮/输入/卡片/丸子/仪表统一质感 |
 | **U3 状态与细节** | 边角不掉链子 | 空名单/未运行/加载/错误态；disabled/hover/focus；窄窗自适应 |
-| **U4（可选）** | 锦上添花 | 图标、微动效、明暗主题切换、相似度仪表更生动的可视化 |
+| **U4（可选）** | 锦上添花 | 图标、微动效、相似度仪表更生动的可视化 |
 
 ## 约束与 note
 
@@ -79,15 +80,38 @@ frontend/                      ← 新前端工程（Vue/React/Svelte + TS + Vit
 - **绝不动** `listApps/start/stop/capture/setMuted/renameTarget/removeTarget/getStatus/cableStatus` 的调用契约（JS 调名 + 返回 JSON 结构）——美化是纯呈现层。
 - 验证方式：改完重编 `automute_gui` → 起窗口看布局 + 拉伸 + 各状态；功能回归靠已验的真机流程。
 
+## 窗口外壳：无边框 + 自绘标题栏（已定要做）
+
+去掉 Windows 原生标题栏（最小化/最大化/关闭、系统边框），**自绘一个 app 内的现代标题栏**
+（VS Code/Discord 那类）。这块**要动 C++**（原生窗口层，前端碰不到）——是对"换框架 C++ 零改动"
+的一个**明确划出的例外**，独立可控。
+
+**做法（Windows + webview）：**
+- 拿 `w.window()` 得 HWND → 去掉 `WS_CAPTION`，**保留 `WS_THICKFRAME`+`WS_MINIMIZEBOX`/`MAXIMIZEBOX`**
+  （留着才有缩放/任务栏/Aero Snap/双击最大化）。
+- 子类化窗口过程（`SetWindowSubclass`，**务必转调 webview 原 proc**，别吞它的消息）：
+  - `WM_NCCALCSIZE` 吃掉非客户区 → 客户区铺满整窗（无原生边框）。
+  - `WM_NCHITTEST` 重建四边/四角**缩放热区** + 标题栏拖拽区。
+- 前端自绘标题栏：app 名 + min/max/close 按钮（Naive UI / 自绘 SVG）。
+  - 拖拽优先 CSS `-webkit-app-region: drag`（WebView2/Edge 148 支持）；按钮区 `no-drag`。
+    兜底：JS→C++ `winDrag`（`ReleaseCapture` + `WM_NCLBUTTONDOWN/HTCAPTION`）。
+- 新增 C++ 绑定：`winMinimize` / `winToggleMaximize` / `winClose`（操作 HWND）。
+
+**风险/note：** 子类化别破坏 webview 消息处理（转调原 proc）；最大化要修"盖住任务栏"；
+圆角/阴影自绘；DPI 缩放下热区尺寸。**这块是本阶段最硬的一段，单列子步、先小窗验证。**
+
+待定（U 该步动手前）：缩放/贴边是否保留（推荐**保留**，你抱怨过拉伸）；窗口圆角+投影要不要。
+
 ## 待对齐（动手前钉）
 
-- **嵌入方式**：构建产物 → 嵌进 `kIndexHtml`（保单 exe，发布干净）还是运行时读 `dist/index.html`
-  （开发热更顺，但要随 exe 带文件）。倾向**发布走嵌入、开发可读文件**两便——U0 时定。
-- **生成步骤放哪**：`dist/index.html → kIndexHtml` 用独立脚本，还是 CMake 构建期自动跑（需 Node 在 PATH）。
 - option 文案收敛（设备全名是否默认隐藏、hover/副行再显示）。
+- 无边框窗口的圆角/投影、是否保留缩放贴边（倾向保留）——U（窗口外壳）步再定。
 
 ## 已钉决策小结
 
-- 栈：**Vue 3 + Naive UI + TS + Vite**，构建单文件 HTML 嵌入，C++/绑定零改动。
+- 栈：**Vue 3 + Naive UI + TS + Vite**，构建单文件 HTML 嵌入。
 - 视觉：**精致暗色 · 现代极简**。
-- 节奏：U0 打通框架管线 → U1 复刻功能 → U2 设计语言 → U3 状态细节 →（U4 可选）。
+- **嵌入方式**：发布**嵌入**进 `kIndexHtml`（保单 exe）；开发可**直接读 `dist/index.html`**（热更顺）——两便。
+- **生成步骤**：`dist/index.html → kIndexHtml` 用**独立脚本**（隔离、好维护），不塞进 CMake。
+- **窗口外壳**：无边框 + 自绘标题栏（要动 C++，独立例外）。
+- 节奏：U0 框架管线 → U1 复刻功能 → **Uw 窗口外壳（无边框）** → U2 设计语言 → U3 状态细节 →（U4 可选）。
