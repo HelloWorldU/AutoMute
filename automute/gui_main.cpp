@@ -94,6 +94,7 @@ int main() {
   webview::webview w(true, nullptr);
   w.set_title("AutoMute");
   w.set_size(560, 640, WEBVIEW_HINT_NONE);
+  w.set_size(420, 520, WEBVIEW_HINT_MIN); // 最小尺寸，防拉小破版
 
   App app;
 
