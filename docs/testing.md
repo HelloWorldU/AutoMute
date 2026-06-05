@@ -16,7 +16,7 @@
 | 层 | 在哪 | 测什么 |
 |---|------|--------|
 | **Tier 1 单元** `automute_unit_tests` | `tests/unit/` | `SpscRingBuffer`（回绕/写满/空读）、`MonoHistoryRing`（取最近 N 的回绕，对参考实现）、`resampleTo16k`（长度比例/DC 保持/无 NaN）。纯逻辑、无 ONNX、毫秒级 |
-| **Tier 2 集成** `automute_embedder_tests` | `tests/integration/` | 声纹管线 wav→fbank→ONNX→embedding：`cosineSimilarity` 性质 + 样本断言「同人 >0.6（实测 0.83）/ 异人 <0.35（实测 0.03）/ 区分度 >0.3」。链 ONNX/kaldi，离线确定可复现 |
+| **Tier 2 集成** `automute_embedder_tests` / `automute_engine_tests` | `tests/integration/` | ① 声纹管线 wav→fbank→ONNX→embedding：`cosineSimilarity` 性质 + 样本断言「同人 0.83 / 异人 0.03 / 区分度 >0.3」。② 名单持久化往返：登记+切开关→存盘→新引擎读回，名字/开关一致。链 ONNX/kaldi，离线确定可复现 |
 | **Tier 3 冒烟** `tests/smoke/smoke.ps1` | `tests/smoke/` | 构建全目标 + ctest + `automute_app --apps` 退出码 + `automute_gui` 起窗口存活。防"改崩构建/启动" |
 
 ## 怎么跑

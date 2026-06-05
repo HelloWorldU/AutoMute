@@ -76,6 +76,15 @@ public:
   // 取某目标的对外快照（idx 越界返回空 name 的视图）。
   TargetView targetAt(size_t idx) const;
 
+  // ── 持久化（声纹名单存盘，免每次重抓） ──
+  // 设了路径后，目标增/改/删/切开关都【自动存盘】到 path；空路径=不持久化
+  // （CLI 不调即不持久化）。存的是名字+声纹向量+开关，与当前模型绑定。
+  void setPersistPath(const std::string& path);
+  // 从 persistPath 读回名单（启动调一次）。文件不存在视为空、返回 true。
+  bool loadTargets(std::string& err);
+  // 清空名单并存盘（空）。
+  void clearTargets();
+
   // ── 最近 N 秒快照（在线圈人登记的地基） ──
   // 拷出最近 seconds 秒的单声道样本到 outMono，sr 填采样率。运行中随时可调，
   // 不影响分析流水线。历史不足 seconds 就给现有的；无历史返回 false。
@@ -101,8 +110,11 @@ private:
 
   // 算嵌入已成功后追加目标，返回索引（addTarget/addTargetFromWav 共用）。
   int enroll(const std::string& name, std::vector<float>&& emb);
+  // 把当前名单写到 persistPath_（若设）。增删改后调，内部短暂持锁拷贝。
+  void persist_();
 
   Config cfg_;
+  std::string persistPath_; // 空=不持久化
   Embedder emb_;
   bool prepared_ = false;
 

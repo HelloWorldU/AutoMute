@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstring>
+#include <fstream>
+#include <iterator>
 
 #include "automute/audio/process_loopback.h"
 #include "automute/audio/render_playback.h"
@@ -25,12 +28,17 @@ bool AutoMuteEngine::prepare(const Config& cfg, std::string& err) {
 }
 
 int AutoMuteEngine::enroll(const std::string& name, std::vector<float>&& emb) {
-  std::lock_guard<std::mutex> lk(targetsMu_);
-  auto t = std::make_unique<Target>();
-  t->name = name;
-  t->emb = std::move(emb);
-  targets_.push_back(std::move(t));
-  return (int)targets_.size() - 1;
+  int idx;
+  {
+    std::lock_guard<std::mutex> lk(targetsMu_);
+    auto t = std::make_unique<Target>();
+    t->name = name;
+    t->emb = std::move(emb);
+    targets_.push_back(std::move(t));
+    idx = (int)targets_.size() - 1;
+  }
+  persist_();
+  return idx;
 }
 
 int AutoMuteEngine::addTarget(const std::string& name,
@@ -56,21 +64,33 @@ int AutoMuteEngine::addTargetFromWav(const std::string& name,
 }
 
 void AutoMuteEngine::setTargetMuted(size_t idx, bool on) {
-  std::lock_guard<std::mutex> lk(targetsMu_);
-  if (idx < targets_.size())
+  {
+    std::lock_guard<std::mutex> lk(targetsMu_);
+    if (idx >= targets_.size())
+      return;
     targets_[idx]->muted.store(on);
+  }
+  persist_();
 }
 
 void AutoMuteEngine::renameTarget(size_t idx, const std::string& name) {
-  std::lock_guard<std::mutex> lk(targetsMu_);
-  if (idx < targets_.size())
+  {
+    std::lock_guard<std::mutex> lk(targetsMu_);
+    if (idx >= targets_.size())
+      return;
     targets_[idx]->name = name;
+  }
+  persist_();
 }
 
 void AutoMuteEngine::removeTarget(size_t idx) {
-  std::lock_guard<std::mutex> lk(targetsMu_);
-  if (idx < targets_.size())
+  {
+    std::lock_guard<std::mutex> lk(targetsMu_);
+    if (idx >= targets_.size())
+      return;
     targets_.erase(targets_.begin() + idx);
+  }
+  persist_();
 }
 
 size_t AutoMuteEngine::targetCount() const {
@@ -87,6 +107,93 @@ AutoMuteEngine::TargetView AutoMuteEngine::targetAt(size_t idx) const {
     v.muted = targets_[idx]->muted.load();
   }
   return v;
+}
+
+// ── 持久化（二进制：magic + count + 每目标[muted/name/emb]） ──
+void AutoMuteEngine::setPersistPath(const std::string& path) {
+  persistPath_ = path;
+}
+
+void AutoMuteEngine::persist_() {
+  if (persistPath_.empty())
+    return;
+  std::string buf;
+  auto putU32 = [&](uint32_t v) { buf.append(reinterpret_cast<char*>(&v), 4); };
+  { // 短暂持锁拷成字节缓冲，文件 IO 放锁外。
+    std::lock_guard<std::mutex> lk(targetsMu_);
+    buf.append("AMT1", 4);
+    putU32((uint32_t)targets_.size());
+    for (auto& up : targets_) {
+      buf.push_back(up->muted.load() ? 1 : 0);
+      putU32((uint32_t)up->name.size());
+      buf.append(up->name);
+      putU32((uint32_t)up->emb.size());
+      buf.append(reinterpret_cast<const char*>(up->emb.data()),
+                 up->emb.size() * sizeof(float));
+    }
+  }
+  std::ofstream f(persistPath_, std::ios::binary | std::ios::trunc);
+  if (f)
+    f.write(buf.data(), (std::streamsize)buf.size());
+}
+
+bool AutoMuteEngine::loadTargets(std::string& err) {
+  if (persistPath_.empty())
+    return true;
+  std::ifstream f(persistPath_, std::ios::binary);
+  if (!f)
+    return true; // 没存过，空名单
+  std::string buf((std::istreambuf_iterator<char>(f)),
+                  std::istreambuf_iterator<char>());
+  size_t p = 0;
+  auto need = [&](size_t n) { return p + n <= buf.size(); };
+  auto getU32 = [&](uint32_t& v) {
+    if (!need(4))
+      return false;
+    std::memcpy(&v, buf.data() + p, 4);
+    p += 4;
+    return true;
+  };
+  if (buf.size() < 4 || std::memcmp(buf.data(), "AMT1", 4) != 0) {
+    err = "目标名单文件损坏（magic 不符）";
+    return false;
+  }
+  p = 4;
+  uint32_t count = 0;
+  if (!getU32(count))
+    return false;
+  std::vector<std::unique_ptr<Target>> loaded;
+  for (uint32_t i = 0; i < count; ++i) {
+    if (!need(1))
+      break;
+    uint8_t muted = (uint8_t)buf[p++];
+    uint32_t nlen = 0;
+    if (!getU32(nlen) || !need(nlen))
+      break;
+    std::string name(buf.data() + p, nlen);
+    p += nlen;
+    uint32_t dim = 0;
+    if (!getU32(dim) || !need((size_t)dim * sizeof(float)))
+      break;
+    auto t = std::make_unique<Target>();
+    t->name = name;
+    t->emb.resize(dim);
+    std::memcpy(t->emb.data(), buf.data() + p, (size_t)dim * sizeof(float));
+    p += (size_t)dim * sizeof(float);
+    t->muted.store(muted != 0);
+    loaded.push_back(std::move(t));
+  }
+  std::lock_guard<std::mutex> lk(targetsMu_);
+  targets_ = std::move(loaded);
+  return true;
+}
+
+void AutoMuteEngine::clearTargets() {
+  {
+    std::lock_guard<std::mutex> lk(targetsMu_);
+    targets_.clear();
+  }
+  persist_();
 }
 
 bool AutoMuteEngine::snapshotRecent(float seconds, std::vector<float>& outMono,

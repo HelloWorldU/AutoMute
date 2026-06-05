@@ -173,6 +173,15 @@ int main() {
   app.prepared = app.engine.prepare(cfg, err);
   std::string prepareErr = app.prepared ? "" : err;
 
+  // 持久化：声纹名单存 %LOCALAPPDATA%\AutoMute\targets.bin，启动自动读回。
+  if (const char* base = getenv("LOCALAPPDATA")) {
+    std::string dir = std::string(base) + "\\AutoMute";
+    CreateDirectoryA(dir.c_str(), nullptr);
+    app.engine.setPersistPath(dir + "\\targets.bin");
+    std::string lerr;
+    app.engine.loadTargets(lerr); // 失败(文件损坏)忽略，当空名单
+  }
+
   w.bind("listApps",
          [](const std::string&) -> std::string { return listAppsJson(); });
 
@@ -253,6 +262,11 @@ int main() {
   w.bind("removeTarget", [&app](const std::string& req) -> std::string {
     size_t idx = (size_t)std::stoul("0" + arg(req, 0));
     app.engine.removeTarget(idx);
+    return "{\"ok\":true}";
+  });
+
+  w.bind("clearTargets", [&app](const std::string&) -> std::string {
+    app.engine.clearTargets();
     return "{\"ok\":true}";
   });
 

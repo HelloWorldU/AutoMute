@@ -34,6 +34,7 @@ declare global {
     setMuted(idx: number, on: boolean): Promise<{ ok: boolean }>
     renameTarget(idx: number, name: string): Promise<{ ok: boolean }>
     removeTarget(idx: number): Promise<{ ok: boolean }>
+    clearTargets(): Promise<{ ok: boolean }>
     getStatus(): Promise<Status>
     // 窗口外壳（Uw：无边框 + 自绘标题栏）
     winMinimize?(): Promise<unknown>

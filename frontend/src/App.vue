@@ -5,7 +5,7 @@ import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import {
   NConfigProvider, NGlobalStyle, darkTheme, type GlobalThemeOverrides,
   NCard, NSelect, NButton, NInput, NSwitch, NAlert,
-  NText, NSpace, NEmpty, NTag, NInputGroup,
+  NText, NSpace, NEmpty, NTag, NInputGroup, NPopconfirm,
 } from 'naive-ui'
 import type { AppInfo, Status } from './webview'
 
@@ -96,6 +96,11 @@ async function removeTarget(idx: number) { await window.removeTarget(idx); kickP
 const mutedCount = computed(() => targets.value.filter((t) => t.muted).length)
 async function muteAll(on: boolean) {
   for (let i = 0; i < targets.value.length; ++i) await window.setMuted(i, on)
+  kickPoll()
+}
+// 持久化：名单自动存盘/启动自动加载；清空是逃生按钮（NPopconfirm 确认）。
+async function clearAll() {
+  await window.clearTargets?.()
   kickPoll()
 }
 
@@ -249,6 +254,12 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
               <span class="cnt">{{ mutedCount }}/{{ targets.length }} 掐</span>
               <n-button text size="tiny" type="error" @click="muteAll(true)">全掐</n-button>
               <n-button text size="tiny" @click="muteAll(false)">全放</n-button>
+              <n-popconfirm @positive-click="clearAll" positive-text="清空" negative-text="算了">
+                <template #trigger>
+                  <n-button text size="tiny" class="cnt">清空</n-button>
+                </template>
+                清空整个名单？已保存的声纹也会删除。
+              </n-popconfirm>
             </div>
           </template>
           <n-empty v-if="!targets.length"

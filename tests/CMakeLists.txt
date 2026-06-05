@@ -29,4 +29,26 @@ if(TARGET kaldi-native-fbank-core)
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
           ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:automute_embedder_tests>)
   add_test(NAME embedder COMMAND automute_embedder_tests)
+
+  # 引擎持久化往返（链引擎 + 其抓取/渲染依赖；不调 start 但符号需链全）。
+  add_executable(automute_engine_tests
+      ${CMAKE_CURRENT_SOURCE_DIR}/integration/persistence_test.cpp
+      ${CMAKE_SOURCE_DIR}/automute/engine.cpp
+      ${CMAKE_SOURCE_DIR}/automute/audio/embedder.cpp
+      ${CMAKE_SOURCE_DIR}/automute/audio/wav_io.cpp
+      ${CMAKE_SOURCE_DIR}/automute/audio/resampler.cpp
+      ${CMAKE_SOURCE_DIR}/automute/audio/process_loopback.cpp
+      ${CMAKE_SOURCE_DIR}/automute/audio/render_playback.cpp)
+  target_include_directories(automute_engine_tests PRIVATE
+      ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/third_party/dr_libs
+      ${ORT_DIR}/include ${KNF_DIR} ${DOCTEST_INC})
+  target_link_libraries(automute_engine_tests PRIVATE
+      kaldi-native-fbank-core ${ORT_DIR}/lib/onnxruntime.lib
+      ole32 oleaut32 winmm ksuser uuid mmdevapi)
+  target_compile_definitions(automute_engine_tests PRIVATE
+      AUTOMUTE_ROOT="${CMAKE_SOURCE_DIR}")
+  add_custom_command(TARGET automute_engine_tests POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:automute_engine_tests>)
+  add_test(NAME persistence COMMAND automute_engine_tests)
 endif()
