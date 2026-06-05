@@ -68,7 +68,8 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
       automute/audio/audio_sessions.cpp automute/audio/app_router.cpp)
   target_include_directories(automute_gui PRIVATE ${EMBED_INCS} ${WEBVIEW_INC})
   target_link_libraries(automute_gui PRIVATE ${EMBED_LIBS} ${WASAPI_LIBS} mmdevapi
-      runtimeobject advapi32 version shlwapi shell32 gdi32 user32 ole32 oleaut32)
+      runtimeobject advapi32 version shlwapi shell32 gdi32 user32 ole32 oleaut32
+      comctl32 dwmapi) # comctl32: 窗口子类化；dwmapi: 无边框窗口投影（Uw）
 
   # 都要 onnxruntime.dll 在 exe 旁边。
   foreach(t automute_sim_probe automute_detect automute_app automute_gui)

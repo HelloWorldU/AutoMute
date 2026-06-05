@@ -15,6 +15,11 @@
 //
 #include <windows.h>
 
+#include <commctrl.h> // SetWindowSubclass / DefSubclassProc（无边框窗口）
+#include <dwmapi.h>   // DwmExtendFrameIntoClientArea（投影）
+#include <uxtheme.h>  // MARGINS
+#include <windowsx.h> // GET_X_LPARAM / GET_Y_LPARAM
+
 #include <atomic>
 #include <string>
 #include <vector>
@@ -82,6 +87,62 @@ std::string statusJson(App& app) {
          ",\"targets\":" + t + "}";
 }
 
+// 无边框窗口（Uw）：子类化 webview 的窗口过程。保留 WS_OVERLAPPEDWINDOW 风格
+// （Aero Snap/最小化最大化动画/任务栏都正常），仅吃掉非客户区(原生标题栏/边框)
+// 并自己重建缩放热区。拖拽走 JS winDrag（WM_NCLBUTTONDOWN/HTCAPTION），不在此
+// 硬编码标题栏几何。其余消息一律转回 webview 原 proc（DefSubclassProc）。
+LRESULT CALLBACK frameProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR,
+                           DWORD_PTR) {
+  switch (msg) {
+  case WM_NCCALCSIZE:
+    if (wp) {
+      // 客户区铺满整窗（移除原生标题栏/边框）。最大化时留出边框，否则内容被
+      // 屏幕边缘裁掉、任务栏被盖。
+      if (IsZoomed(hwnd)) {
+        auto* p = reinterpret_cast<NCCALCSIZE_PARAMS*>(lp);
+        int fx = GetSystemMetrics(SM_CXSIZEFRAME) +
+                 GetSystemMetrics(SM_CXPADDEDBORDER);
+        int fy = GetSystemMetrics(SM_CYSIZEFRAME) +
+                 GetSystemMetrics(SM_CXPADDEDBORDER);
+        p->rgrc[0].left += fx;
+        p->rgrc[0].right -= fx;
+        p->rgrc[0].top += fy;
+        p->rgrc[0].bottom -= fy;
+      }
+      return 0; // 不调默认 = 不减边框
+    }
+    break;
+  case WM_NCHITTEST: {
+    // 仅重建四边/四角缩放热区；其余交客户区（HTML 标题栏 + winDrag 拖拽）。
+    const LONG b = 8;
+    POINT pt = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
+    RECT rc;
+    GetWindowRect(hwnd, &rc);
+    bool L = pt.x < rc.left + b, R = pt.x >= rc.right - b;
+    bool T = pt.y < rc.top + b, B = pt.y >= rc.bottom - b;
+    if (T && L) return HTTOPLEFT;
+    if (T && R) return HTTOPRIGHT;
+    if (B && L) return HTBOTTOMLEFT;
+    if (B && R) return HTBOTTOMRIGHT;
+    if (L) return HTLEFT;
+    if (R) return HTRIGHT;
+    if (T) return HTTOP;
+    if (B) return HTBOTTOM;
+    return HTCLIENT;
+  }
+  }
+  return DefSubclassProc(hwnd, msg, wp, lp);
+}
+
+// 把 HWND 改成无边框 + 装阴影。
+void makeFrameless(HWND hwnd) {
+  SetWindowSubclass(hwnd, frameProc, 1, 0);
+  MARGINS m{0, 0, 0, 1};
+  DwmExtendFrameIntoClientArea(hwnd, &m); // 无边框也有投影
+  SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+}
+
 } // namespace
 
 int main() {
@@ -95,6 +156,10 @@ int main() {
   w.set_title("AutoMute");
   w.set_size(560, 640, WEBVIEW_HINT_NONE);
   w.set_size(420, 520, WEBVIEW_HINT_MIN); // 最小尺寸，防拉小破版
+
+  // Uw：无边框 + 自绘标题栏。拿 webview 的 HWND 子类化。
+  HWND hwnd = static_cast<HWND>(w.window().value());
+  makeFrameless(hwnd);
 
   App app;
 
@@ -190,6 +255,29 @@ int main() {
 
   w.bind("getStatus",
          [&app](const std::string&) -> std::string { return statusJson(app); });
+
+  // ── Uw：窗口控制（自绘标题栏调用）──
+  w.bind("winMinimize", [hwnd](const std::string&) -> std::string {
+    ShowWindow(hwnd, SW_MINIMIZE);
+    return "{}";
+  });
+  w.bind("winToggleMaximize", [hwnd](const std::string&) -> std::string {
+    ShowWindow(hwnd, IsZoomed(hwnd) ? SW_RESTORE : SW_MAXIMIZE);
+    return "{}";
+  });
+  w.bind("winClose", [hwnd](const std::string&) -> std::string {
+    PostMessage(hwnd, WM_CLOSE, 0, 0);
+    return "{}";
+  });
+  // 标题栏拖拽：发起标准窗口移动（避开 WebView2 不默认支持 app-region:drag）。
+  w.bind("winDrag", [hwnd](const std::string&) -> std::string {
+    ReleaseCapture();
+    SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+    return "{}";
+  });
+  w.bind("winIsMaximized", [hwnd](const std::string&) -> std::string {
+    return IsZoomed(hwnd) ? "true" : "false";
+  });
 
   // 前端页面（内嵌，避免运行时找文件）。模型加载失败也照常显示，给出提示。
   extern const char* kIndexHtml;

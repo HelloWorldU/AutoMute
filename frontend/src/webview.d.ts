@@ -35,10 +35,12 @@ declare global {
     renameTarget(idx: number, name: string): Promise<{ ok: boolean }>
     removeTarget(idx: number): Promise<{ ok: boolean }>
     getStatus(): Promise<Status>
-    // 窗口外壳（Uw 加，U0 先占位声明）
+    // 窗口外壳（Uw：无边框 + 自绘标题栏）
     winMinimize?(): Promise<unknown>
     winToggleMaximize?(): Promise<unknown>
     winClose?(): Promise<unknown>
+    winDrag?(): Promise<unknown>
+    winIsMaximized?(): Promise<boolean>
     // 模型加载失败时 C++ 注入的全局
     __prepareErr?: string
   }

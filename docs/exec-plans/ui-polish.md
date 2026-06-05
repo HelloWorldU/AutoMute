@@ -68,7 +68,7 @@ frontend/                      ← 新前端工程（Vue/React/Svelte + TS + Vit
 |---|------|------|
 | **U0 打通框架管线** ✅ | Vue 工程 → "hello Vue" 跑进 webview | ✅ `frontend/`（Vite6+TS+Vue3+Naive UI）scaffold；`src/webview.d.ts` 声明 9 绑定；`scripts/embed-frontend.mjs` 把 `dist/index.html`(单文件 206KB) → `gui_html.cpp` 的 `kIndexHtml`；重编 `automute_gui` 起窗口存活验通。listApps 按钮待真机点验 |
 | **U1 复刻现有功能** ✅ | 用 Vue/Naive 组件重建当前界面 | ✅ `App.vue` 复刻全部：NSelect(选 App,按 PID 去重) / NInput 抓取命名 / 目标名单(NProgress 仪表条+NSwitch 开关+点名改名+✕删) / 聚合仪表 / NAlert banner / 自适应自调度轮询；修布局 bug（`.grow{min-width:0}` 防溢出 + 窗口 `WEBVIEW_HINT_MIN` 最小尺寸）。构建/起窗口验通，真机交互待验 |
-| **Uw 窗口外壳** | 无边框 + 自绘标题栏 | 改 HWND 样式去原生标题栏（留缩放）；子类化 WndProc 处理 NCCALCSIZE/NCHITTEST；前端标题栏 + min/max/close（`winMinimize/winToggleMaximize/winClose` 绑定 + `app-region:drag`）。**唯一动 C++ 的一步，先小窗验证** |
+| **Uw 窗口外壳** ✅ | 无边框 + 自绘标题栏 | ✅ `SetWindowSubclass` 子类化 webview 窗口过程：`WM_NCCALCSIZE` 吃掉原生标题栏/边框（最大化留边防盖任务栏）、`WM_NCHITTEST` 重建四边四角缩放热区；保留 WS_OVERLAPPEDWINDOW 风格→Snap/动画/任务栏正常；DWM 投影。绑定 `winMinimize/winToggleMaximize/winClose/winDrag/winIsMaximized`。前端自绘标题栏（Segoe Fluent 图标 min/max/close + `winDrag` 拖拽，避开 WebView2 不默认支持 app-region:drag）。构建/起窗口存活验通，真机拖拽/缩放/按钮待验 |
 | **U2 设计语言** | 主题与组件精致化 | 暗色主题 + 设计令牌（色板/间距/圆角/阴影/字号）；按钮/输入/卡片/丸子/仪表统一质感 |
 | **U3 状态与细节** | 边角不掉链子 | 空名单/未运行/加载/错误态；disabled/hover/focus；窄窗自适应 |
 | **U4（可选）** | 锦上添花 | 图标、微动效、相似度仪表更生动的可视化 |
