@@ -54,9 +54,9 @@ GUI 驱动已有的 [`AutoMuteEngine`](../../automute/engine.h)（M4.1 已抽出
 | # | 目标 | 状态 |
 |---|------|------|
 | M4.1 | 抽 `AutoMuteEngine`（核心与界面解耦） | ✅ 已完成 |
-| M4.2 | 引擎扩展：多目标（按 N 设计，v1=1）+ "最近 N 秒"快照 API | ✅ 已完成（见下「M4.2 对齐」；真机多目标待用户验） |
+| M4.2 | 引擎扩展：多目标（按 N 设计，v1=1）+ "最近 N 秒"快照 API | ✅ 已完成（见下「M4.2 对齐」；真机多目标经 GUI 验过） |
 | M4.3 | 路由模块：自动路由/还原（未公开 COM）+ VB-CABLE 检测/安装 + 兑底引导 | ✅ 已完成（a 检测 / b 路由还原 / c 接进 app_main；真机端到端 + 崩溃兜底验通） |
-| M4.4 | GUI 外壳（C++ webview / WebView2）：前端 HTML/CSS/JS，把选 App/抓取命名/静音开关/仪表/退出还原串起来 | 🚧 骨架+地基验通：MinGW+WebView2 编译/链接/起窗口✓；前端单页 + 6 个 bind + 引擎/路由接通；启动存活验证✓。真机交互/听感待用户验 |
+| M4.4 | GUI 外壳（C++ webview / WebView2）：前端 HTML/CSS/JS，把选 App/抓取命名/静音开关/仪表/退出还原串起来 | ✅ **真机端到端验通**（v1 单人闭环：选 chrome→自动路由→在线抓取命名→相似度拉开→掐他生效）。见下「M4.4 对齐（已落地）」 |
 
 ## M4.4 依赖获取（webview，gitignore 不入库，需手动 vendor）
 
@@ -98,9 +98,25 @@ MinGW 关键点（已验）：webview 默认 `MSWEBVIEW2_BUILTIN_IMPL`+`EXPLICIT
 bool snapshotRecent(float seconds, std::vector<float>& outMono, uint32_t& sr);
 ```
 
-## 待深入对齐（动手前再钉）
+## M4.4 对齐（已落地，2026-06-05）
 
-- M4.4 前端栈：纯 HTML/CSS/JS（无构建步骤、轻）vs 框架（Svelte/React，需 Node 构建）——倾向先纯前端。
-- M4.4 JS↔C++ 绑定模型 + 实时状态推送（前端 setInterval 轮询 getter / C++ 定时 eval 推）。
-- M4.4 UI 细节：主窗口布局、控件、交互文案、相似度仪表的呈现。
-- M4.3 路由：`IAudioPolicyConfig` 的具体 CLSID/方法、还原时机（仅退出 vs 切换 App 时）。
+动手前那几项"待深入对齐"已全部敲定并真机验通：
+
+| 决策点 | 落定 |
+|--------|------|
+| **前端栈** | 纯 HTML/CSS/JS 单页，**内嵌为 C++ 字符串**（`gui_html.cpp` 的 `kIndexHtml`，免运行时找文件、无构建步骤）。以后要换 Vue 等只换这段、C++ 绑定不动 |
+| **JS↔C++ 绑定** | `w.bind(name, fn)` 暴露 6 个动作：`listApps/start/stop/capture/setMuted/getStatus`（+ `renameTarget/removeTarget/cableStatus`）。JS 调 `window.xxx(...)` 得 Promise，C++ 返回 JSON 字符串（webview 自动 `JSON.parse` 给 JS 对象） |
+| **实时状态推送** | 前端**自调度 `setTimeout` 轮询** `getStatus`（不是 `setInterval`——无背压会雪崩，见下踩坑）。自适应间隔：运行 250ms / 闲置 2s |
+| **UI** | 选 App 下拉（按 PID 去重）+ 圈人命名 + 目标名单（相似度条 + 掐他/放行开关 + 点名改名 + ✕ 删）+ 顶部聚合仪表 🔇/🔊 |
+| **M4.3 路由细节** | IID 先试 `ab3d4648`(21H2+) 回退 `2a59116d`(本机 19044 命中)；还原时机 = **仅退出**（+ 启动 journal 兜底崩溃残留）；切换目标 App 不单独还原（v1 单 App） |
+
+### 真机踩坑清单（都已修，留作后人避雷）
+
+| 坑 | 根因 | 修法 |
+|---|------|------|
+| 起窗口即抛 `CoInitializeEx concurrency` | AppRouter 先把 UI 线程设 MTA，webview 要 STA | **先建 webview 占 STA** 再建 AppRouter（其 RoInit 拿 `RPC_E_CHANGED_MODE`，已容忍） |
+| 点「抓取」无反应/卡死 | 前端 JS 函数 `capture()` 与绑定 `window.capture` 同名 → 无限递归 | 前端处理函数名不得与绑定同名，改 `onCapture` |
+| 下拉同一 App 出现两次 | 路由后 Windows 留过期会话残骸 | 前端按 PID 去重，优先"出声中"那条 |
+| 开关要点很多次才灵 | 每轮询全量重建 DOM，按钮被销毁吃掉点击 | 仅数量变化时重建结构，其余**原地更新** |
+| 闲置 CPU 越转越狂 | `setInterval` 无背压，异步轮询超时即重叠 → 正反馈雪崩 | 改 `setTimeout` **自调度**（完成驱动闭环）+ 自适应间隔 |
+| 删目标可能悬空崩溃 | 分析线程原在锁外用裸指针比对 | 分析线程改**持锁比对**（cosine 很便宜），删除在锁内 erase |

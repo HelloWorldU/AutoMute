@@ -46,7 +46,7 @@ Design details in [`docs/DESIGN.md`](docs/DESIGN.md); implementation status in
 | **M1** | WASAPI loopback capture → playback, latency, manual mute toggle | ✅ closed loop, steady ~20 ms |
 | **M2** | Enroll target voiceprint → ONNX inference → real-time match → gate on hit | ✅ real-machine auto-mute verified |
 | **M3** | Tuning: shrink the decision window, VAD, threshold | 🅿️ paused — ~1.5 s window floor (shrinking backfires, M3.4) |
-| **M4** | App shell: decoupled `AutoMuteEngine` + auto device-routing + GUI | 🚧 M4.1–4.3 done; M4.4 GUI scaffold up |
+| **M4** | App shell: decoupled `AutoMuteEngine` + auto device-routing + GUI | ✅ v1 single-person loop verified end-to-end (GUI: pick app → auto-route → live-capture & name → mute). Persistence → v1.1 |
 
 Single source of truth for status: [`docs/STATUS.md`](docs/STATUS.md).
 
