@@ -275,6 +275,14 @@ int main() {
     SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
     return "{}";
   });
+  // 边缘缩放：WebView2 子窗口盖住整窗→父窗口 NCHITTEST 不触发，故由 HTML 边缘
+  // 手柄调此发起标准缩放（ht 为 HTLEFT/HTTOP/HTBOTTOMRIGHT… 方向码）。
+  w.bind("winResize", [hwnd](const std::string& req) -> std::string {
+    int ht = std::stoi("0" + arg(req, 0));
+    ReleaseCapture();
+    SendMessage(hwnd, WM_NCLBUTTONDOWN, (WPARAM)ht, 0);
+    return "{}";
+  });
   w.bind("winIsMaximized", [hwnd](const std::string&) -> std::string {
     return IsZoomed(hwnd) ? "true" : "false";
   });

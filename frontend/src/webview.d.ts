@@ -40,6 +40,7 @@ declare global {
     winToggleMaximize?(): Promise<unknown>
     winClose?(): Promise<unknown>
     winDrag?(): Promise<unknown>
+    winResize?(ht: number): Promise<unknown>
     winIsMaximized?(): Promise<boolean>
     // 模型加载失败时 C++ 注入的全局
     __prepareErr?: string

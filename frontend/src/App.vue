@@ -127,12 +127,25 @@ function onTitleDbl(e: MouseEvent) {
   if ((e.target as HTMLElement).closest('.wc')) return
   winMax()
 }
+// 边缘缩放手柄：WebView2 盖住整窗，靠 HTML 手柄发起缩放（HT 方向码）。
+const HT = { L: 10, R: 11, T: 12, TL: 13, TR: 14, B: 15, BL: 16, BR: 17 }
+function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
 </script>
 
 <template>
   <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
     <n-global-style />
     <div class="shell">
+      <!-- 边缘缩放手柄（WebView2 盖住整窗→父窗口边缘 hit-test 失效，用 HTML 手柄）-->
+      <div class="rz rz-t" @mousedown="rz(HT.T)"></div>
+      <div class="rz rz-b" @mousedown="rz(HT.B)"></div>
+      <div class="rz rz-l" @mousedown="rz(HT.L)"></div>
+      <div class="rz rz-r" @mousedown="rz(HT.R)"></div>
+      <div class="rz rz-tl" @mousedown="rz(HT.TL)"></div>
+      <div class="rz rz-tr" @mousedown="rz(HT.TR)"></div>
+      <div class="rz rz-bl" @mousedown="rz(HT.BL)"></div>
+      <div class="rz rz-br" @mousedown="rz(HT.BR)"></div>
+
       <!-- 自绘标题栏 -->
       <div class="titlebar" @mousedown="onTitleDown" @dblclick="onTitleDbl">
         <div class="tb-left">
@@ -217,7 +230,19 @@ function onTitleDbl(e: MouseEvent) {
 html, body, #app { height: 100%; }
 body { margin: 0; background: #1a1b1e; color: #e3e3e6;
        font-family: 'Segoe UI', system-ui, sans-serif; }
-.shell { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.shell { height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+         position: relative; }
+
+/* 边缘缩放手柄：贴窗口四边四角，透明，盖在最上层 */
+.rz { position: fixed; z-index: 9999; }
+.rz-t { top: 0; left: 6px; right: 6px; height: 5px; cursor: ns-resize; }
+.rz-b { bottom: 0; left: 6px; right: 6px; height: 5px; cursor: ns-resize; }
+.rz-l { left: 0; top: 6px; bottom: 6px; width: 5px; cursor: ew-resize; }
+.rz-r { right: 0; top: 6px; bottom: 6px; width: 5px; cursor: ew-resize; }
+.rz-tl { top: 0; left: 0; width: 8px; height: 8px; cursor: nwse-resize; }
+.rz-tr { top: 0; right: 0; width: 8px; height: 8px; cursor: nesw-resize; }
+.rz-bl { bottom: 0; left: 0; width: 8px; height: 8px; cursor: nesw-resize; }
+.rz-br { bottom: 0; right: 0; width: 8px; height: 8px; cursor: nwse-resize; }
 
 /* 自绘标题栏 */
 .titlebar { height: 36px; flex: none; display: flex; align-items: center;
