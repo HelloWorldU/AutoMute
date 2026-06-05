@@ -76,6 +76,7 @@ const char* kIndexHtml = R"HTML(<!DOCTYPE html>
 <script>
 let running = false;
 let targetEls = []; // 缓存每行的元素引用，避免每次轮询重建 DOM（重建会吃掉点击）
+let pollTimer = null;
 
 function show(id, t){ document.getElementById(id).textContent = t; }
 
@@ -121,6 +122,7 @@ async function toggleRun(){
     running = false; btn.textContent = '开始'; btn.classList.remove('danger');
     show('routeMsg','');
   }
+  clearTimeout(pollTimer); poll(); // 立刻刷一次并切到对应轮询节奏，不等闲置间隔
 }
 
 async function onCapture(){
@@ -218,6 +220,11 @@ async function poll(){
     if(s.routeMsg) show('routeMsg', s.routeMsg);
     renderTargets(s);
   }catch(e){}
+  // 自适应：运行时高频刷仪表(250ms)，闲置时降到 2s 一次——
+  // 避免没启动也每秒 4 次桥接往返、把 WebView2 喂得不休眠、空转烧 CPU。
+  // 单一定时器（先清后设），杜绝多条 poll 链叠加越跑越快。
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(poll, running ? 250 : 2000);
 }
 
 async function init(){
@@ -235,7 +242,7 @@ async function init(){
     }
   }catch(e){}
   await refreshApps();
-  setInterval(poll, 250);
+  poll(); // 自调度循环（见 poll 末尾的 setTimeout）
 }
 init();
 </script>
