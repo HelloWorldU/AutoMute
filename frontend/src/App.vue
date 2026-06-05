@@ -92,6 +92,13 @@ async function capture() {
 async function setMuted(idx: number, on: boolean) { await window.setMuted(idx, on) }
 async function removeTarget(idx: number) { await window.removeTarget(idx); kickPoll() }
 
+// 多人：开了静音开关的数量 + 一键全掐/全放。
+const mutedCount = computed(() => targets.value.filter((t) => t.muted).length)
+async function muteAll(on: boolean) {
+  for (let i = 0; i < targets.value.length; ++i) await window.setMuted(i, on)
+  kickPoll()
+}
+
 const editingIdx = ref(-1)
 const editingName = ref('')
 async function startEdit(idx: number, name: string) {
@@ -237,10 +244,18 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
         </n-card>
 
         <n-card title="目标名单 · 开了开关才掐" size="small" class="card">
+          <template #header-extra>
+            <div class="bulk" v-if="targets.length">
+              <span class="cnt">{{ mutedCount }}/{{ targets.length }} 掐</span>
+              <n-button text size="tiny" type="error" @click="muteAll(true)">全掐</n-button>
+              <n-button text size="tiny" @click="muteAll(false)">全放</n-button>
+            </div>
+          </template>
           <n-empty v-if="!targets.length"
                    :description="running ? '某人说话时点「抓取当前说话人」登记' : '还没登记目标'" />
           <transition-group v-else name="tgt" tag="div" class="tgts">
-            <div v-for="(t, i) in targets" :key="i" class="tgt">
+            <div v-for="(t, i) in targets" :key="i" class="tgt"
+                 :class="{ speaking: t.sim >= 0.5, cut: t.sim >= 0.5 && t.muted }">
               <n-input v-if="editingIdx === i" v-model:value="editingName" size="tiny"
                        class="nm-edit" autofocus @blur="commitEdit"
                        @keyup.enter="commitEdit" @keyup.esc="editingIdx = -1" />
@@ -320,8 +335,16 @@ body { margin: 0; background: #161719; color: #e8e9ec;
 .capmsg { display: block; margin-top: 9px; }
 .tgts { display: flex; flex-direction: column; margin: -3px -6px; }
 .tgt { display: flex; align-items: center; gap: 10px; padding: 8px 6px;
-       border-radius: 7px; transition: background .12s; }
+       border-radius: 7px; position: relative; transition: background .12s; }
 .tgt:hover { background: rgba(255,255,255,0.03); }
+/* 谁在说话：相似度过阈即高亮（indigo=放行通过 / 红=正被掐） */
+.tgt.speaking { background: rgba(107,123,255,0.09); }
+.tgt.speaking.cut { background: rgba(229,72,77,0.10); }
+.tgt.speaking::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
+       width: 3px; border-radius: 2px; background: #6b7bff; }
+.tgt.speaking.cut::before { background: #e5484d; }
+.bulk { display: flex; align-items: center; gap: 6px; }
+.cnt { font-size: 12px; color: #8b9099; font-variant-numeric: tabular-nums; }
 .nm, .nm-edit { width: 82px; flex: none; }
 .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
       font-size: 13.5px; }
