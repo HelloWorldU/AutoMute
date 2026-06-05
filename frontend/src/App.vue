@@ -23,7 +23,7 @@ const selectedPid = ref<number | null>(null)
 const status = ref<Status | null>(null)
 const banner = ref('')
 const capMsg = ref('')
-const starting = ref(false)
+const busy = ref(false) // start/stop 进行中（按钮 spinner 反馈）
 
 const running = computed(() => status.value?.running ?? false)
 const targets = computed(() => status.value?.targets ?? [])
@@ -49,14 +49,15 @@ async function refreshApps() {
 }
 
 async function toggleRun() {
-  if (!running.value) {
-    if (!selectedPid.value) { banner.value = '请先选一个 App'; return }
-    starting.value = true
-    try { await window.start(selectedPid.value) } finally { starting.value = false }
-  } else {
-    await window.stop()
+  if (!running.value && !selectedPid.value) { banner.value = '请先选一个 App'; return }
+  busy.value = true
+  try {
+    if (!running.value) await window.start(selectedPid.value!)
+    else await window.stop()
+  } finally {
+    busy.value = false
+    kickPoll() // 立刻刷状态：按钮/仪表随即反映 running 变化
   }
-  kickPoll()
 }
 
 async function capture() {
@@ -138,7 +139,7 @@ function simPct(s: number) { return Math.max(0, Math.min(1, s)) * 100 }
             <n-button quaternary @click="refreshApps">刷新</n-button>
           </div>
           <div class="row">
-            <n-button :type="running ? 'error' : 'primary'" :loading="starting"
+            <n-button :type="running ? 'error' : 'primary'" :loading="busy"
                       @click="toggleRun">{{ running ? '停止' : '开始' }}</n-button>
             <n-text depth="3" class="rmsg">{{ routeMsg }}</n-text>
           </div>
