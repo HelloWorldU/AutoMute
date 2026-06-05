@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "automute/audio/embedder.h"
+#include "automute/audio/history_ring.h"
 #include "automute/audio/ring_buffer.h"
 
 class AutoMuteEngine {
@@ -100,8 +101,6 @@ private:
 
   // 算嵌入已成功后追加目标，返回索引（addTarget/addTargetFromWav 共用）。
   int enroll(const std::string& name, std::vector<float>&& emb);
-  // 把 mono 块追加进历史环（抓取线程调，加锁）。
-  void pushHistory(const float* mono, size_t n);
 
   Config cfg_;
   Embedder emb_;
@@ -113,12 +112,8 @@ private:
   mutable std::mutex targetsMu_;
   std::vector<std::unique_ptr<Target>> targets_;
 
-  // 最近 N 秒 mono 历史环（抓取线程写、snapshotRecent 加锁拷）。
-  // 不能复用 SpscRingBuffer：快照读者是第三条线程，违反 SPSC（见 M4.2 对齐）。
-  mutable std::mutex histMu_;
-  std::vector<float> hist_;  // 循环缓冲，容量 = kHistorySec * sr（首次写时分配）
-  size_t histWrite_ = 0;     // 下一个写入位置
-  size_t histFilled_ = 0;    // 已填充样本数（≤ hist_.size()）
+  // 最近 N 秒 mono 历史环（抓取线程写、snapshotRecent 旁路拷）。详见 history_ring.h。
+  MonoHistoryRing hist_;
   static constexpr float kHistorySec = 5.0f;
 
   SpscRingBuffer<float> rbPlay_{48000 * 8}; // 播放：交错立体声

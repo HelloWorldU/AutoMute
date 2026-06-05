@@ -89,45 +89,10 @@ AutoMuteEngine::TargetView AutoMuteEngine::targetAt(size_t idx) const {
   return v;
 }
 
-void AutoMuteEngine::pushHistory(const float* mono, size_t n) {
-  std::lock_guard<std::mutex> lk(histMu_);
-  if (hist_.empty()) {
-    const size_t cap = (size_t)(kHistorySec * sampleRate_.load());
-    hist_.assign(cap ? cap : 1, 0.0f);
-    histWrite_ = 0;
-    histFilled_ = 0;
-  }
-  const size_t cap = hist_.size();
-  // 一次写入超过容量时只保留尾部 cap 个（更早的本来也会被覆盖掉）。
-  if (n >= cap) {
-    mono += (n - cap);
-    n = cap;
-  }
-  for (size_t i = 0; i < n; ++i) {
-    hist_[histWrite_] = mono[i];
-    histWrite_ = (histWrite_ + 1) % cap;
-  }
-  histFilled_ = std::min(histFilled_ + n, cap);
-}
-
 bool AutoMuteEngine::snapshotRecent(float seconds, std::vector<float>& outMono,
                                     uint32_t& sr) const {
-  std::lock_guard<std::mutex> lk(histMu_);
   sr = sampleRate_.load();
-  if (histFilled_ == 0) {
-    outMono.clear();
-    return false;
-  }
-  const size_t cap = hist_.size();
-  size_t want = (size_t)(seconds * sr);
-  if (want > histFilled_)
-    want = histFilled_;
-  outMono.resize(want);
-  // 最近 want 个样本：从 (histWrite_ - want) 处环形读到 histWrite_。
-  const size_t start = (histWrite_ + cap - want) % cap;
-  for (size_t i = 0; i < want; ++i)
-    outMono[i] = hist_[(start + i) % cap];
-  return true;
+  return hist_.snapshot((size_t)(seconds * sr), outMono) > 0;
 }
 
 bool AutoMuteEngine::start(uint32_t pid, std::string& err) {
@@ -153,6 +118,7 @@ bool AutoMuteEngine::start(uint32_t pid, std::string& err) {
       return;
     }
     sampleRate_.store(cap.sampleRate());
+    hist_.reset((size_t)(kHistorySec * cap.sampleRate())); // 本次启动的历史环
     std::vector<float> mono;
     cap.run(
         [this, &mono](const float* s, uint32_t frames, uint32_t ch) {
@@ -165,7 +131,7 @@ bool AutoMuteEngine::start(uint32_t pid, std::string& err) {
             mono[f] = m / ch;
           }
           rbAna_.write(mono.data(), frames);
-          pushHistory(mono.data(), frames);
+          hist_.push(mono.data(), frames);
         },
         running_);
   });

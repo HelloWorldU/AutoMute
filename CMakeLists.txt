@@ -78,3 +78,10 @@ if(EXISTS ${ORT_DIR} AND EXISTS ${KNF_DIR})
             ${ORT_DIR}/lib/onnxruntime.dll $<TARGET_FILE_DIR:${t}>)
   endforeach()
 endif()
+
+# ---- 测试（doctest + ctest）。fetch-deps 第 6 步拉 doctest；缺了静默跳过，不挡主构建。
+#      跑：ctest --test-dir build --output-on-failure。详见 docs/testing.md。
+if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/doctest/doctest.h)
+  enable_testing()
+  add_subdirectory(tests)
+endif()

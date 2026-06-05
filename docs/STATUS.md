@@ -37,6 +37,7 @@
 | **每应用路由 AppRouter（M4.3）** | ✅ | 与引擎解耦。检测 CABLE + 未公开 `IAudioPolicyConfigFactory` route/restore（双 role）+ RAII 还原 + 崩溃 journal 兜底 + ClearAll。⚠️ 接口类型须外部链接（否则 GCC -O2 去虚化跳飞）；运行中用户手改设备会冲突（v1 不监听，backlog） | `audio/app_router.{h,cpp}` |
 | **CLI 前端 `automute_app`（P2.4）** | ✅ | `--proc <PID>` 驱动引擎的薄 CLI；调参旋钮 + 热键 c/1-9 冰测；引擎诊断入口 | `app_main.cpp` |
 | **GUI `automute_gui`（M4.4 + UI 打磨）** | ✅ | C++ webview 宿主 + **Vue 3 + Naive UI** 前端（`frontend/`→Vite 构建单文件→`scripts/embed-frontend.mjs` 嵌入 `kIndexHtml`，C++ 9 绑定不变）。无边框自绘标题栏、精致暗色、生动仪表 | `gui_main.cpp`, `gui_html.cpp`(生成), `frontend/` |
+| **测试（doctest + ctest）** | ✅ | Tier1 单元(环形缓冲/历史环/重采样, 224 断言) + Tier2 集成(声纹管线 同人 0.83/异人 0.03) + Tier3 冒烟脚本。详见 [`testing.md`](testing.md) | `tests/`, `automute/audio/history_ring.h` |
 | 声纹/配置持久化 | ❌ | v1.1（现每次现登记） | — |
 | VAD + 阈值迟滞 | ❌ | M3.2/M3.3，边际小暂缓 | — |
 

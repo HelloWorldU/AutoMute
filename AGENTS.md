@@ -12,6 +12,7 @@
 |---------|--------|
 | 顶层设计 / 终点 / 关键决策 / 延迟权衡 | [`docs/DESIGN.md`](docs/DESIGN.md) |
 | 功能实现状态（单一事实源） | [`docs/STATUS.md`](docs/STATUS.md) |
+| **测试策略 / 怎么跑 / 人工清单** | [`docs/testing.md`](docs/testing.md)（代码在 [`tests/`](tests/)） |
 | 产品化路线（P1-P5；P1 已移除、P2 已成、P3-5 并入 M4） | [`docs/exec-plans/productization.md`](docs/exec-plans/productization.md) |
 | **M4 app 壳 spec** | [`docs/exec-plans/m4-app-shell.md`](docs/exec-plans/m4-app-shell.md) |
 | **UI 打磨（Vue 3 + Naive UI 现代界面）** | [`docs/exec-plans/ui-polish.md`](docs/exec-plans/ui-polish.md) |
