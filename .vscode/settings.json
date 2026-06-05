@@ -15,5 +15,6 @@
   "C_Cpp.clang_format_style": "file",
 
   // 指向 CMake 生成的编译指令清单 → cpptools 据此实时分析、画红线
-  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json"
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "git.ignoreLimitWarning": true
 }

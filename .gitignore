@@ -34,3 +34,8 @@ desktop.ini
 
 # 第三方库一律不入库（体积大或可重新获取）；用 scripts/fetch-deps.ps1 一键拉取
 /third_party/
+
+# 前端（Vue+Vite）依赖与构建产物不入库。源码在 frontend/src 入库；
+# 构建产物经 scripts/embed-frontend.mjs 嵌进 automute/gui_html.cpp（生成物，已入库）。
+/frontend/node_modules/
+/frontend/dist/

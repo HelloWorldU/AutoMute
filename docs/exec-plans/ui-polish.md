@@ -66,7 +66,7 @@ frontend/                      ← 新前端工程（Vue/React/Svelte + TS + Vit
 
 | # | 目标 | 要点 |
 |---|------|------|
-| **U0 打通框架管线** | Vue 工程 → "hello Vue" 跑进 webview | scaffold `frontend/`（Vite+TS+Vue+Naive UI）；`webview.d.ts` 声明 9 个绑定；**独立脚本** `dist/index.html → kIndexHtml`；验证窗口显示 + 一个绑定（`listApps`）通。**先把管线钉死再写界面** |
+| **U0 打通框架管线** ✅ | Vue 工程 → "hello Vue" 跑进 webview | ✅ `frontend/`（Vite6+TS+Vue3+Naive UI）scaffold；`src/webview.d.ts` 声明 9 绑定；`scripts/embed-frontend.mjs` 把 `dist/index.html`(单文件 206KB) → `gui_html.cpp` 的 `kIndexHtml`；重编 `automute_gui` 起窗口存活验通。listApps 按钮待真机点验 |
 | **U1 复刻现有功能** | 用 Vue/Naive 组件重建当前界面 | 选 App / 抓取命名 / 目标名单（仪表条+开关+改名+删）/ 聚合仪表 / banner —— 功能对齐现状，顺手修布局 bug（溢出/最小尺寸/响应式） |
 | **Uw 窗口外壳** | 无边框 + 自绘标题栏 | 改 HWND 样式去原生标题栏（留缩放）；子类化 WndProc 处理 NCCALCSIZE/NCHITTEST；前端标题栏 + min/max/close（`winMinimize/winToggleMaximize/winClose` 绑定 + `app-region:drag`）。**唯一动 C++ 的一步，先小窗验证** |
 | **U2 设计语言** | 主题与组件精致化 | 暗色主题 + 设计令牌（色板/间距/圆角/阴影/字号）；按钮/输入/卡片/丸子/仪表统一质感 |
