@@ -28,8 +28,8 @@ declare global {
   interface Window {
     listApps(): Promise<AppInfo[]>
     cableStatus(): Promise<{ available: boolean; installed: boolean }>
-    start(pid: number): Promise<{ ok: boolean; msg: string }>
-    stop(): Promise<{ ok: boolean }>
+    startEngine(pid: number): Promise<{ ok: boolean; msg: string }>
+    stopEngine(): Promise<{ ok: boolean }>
     capture(name: string): Promise<{ ok: boolean; idx?: number; msg?: string }>
     setMuted(idx: number, on: boolean): Promise<{ ok: boolean }>
     renameTarget(idx: number, name: string): Promise<{ ok: boolean }>

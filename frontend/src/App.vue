@@ -52,8 +52,8 @@ async function toggleRun() {
   if (!running.value && !selectedPid.value) { banner.value = '请先选一个 App'; return }
   busy.value = true
   try {
-    if (!running.value) await window.start(selectedPid.value!)
-    else await window.stop()
+    if (!running.value) await window.startEngine(selectedPid.value!)
+    else await window.stopEngine()
   } finally {
     busy.value = false
     kickPoll() // 立刻刷状态：按钮/仪表随即反映 running 变化

@@ -115,7 +115,9 @@ int main() {
            ",\"installed\":" + b(installed) + "}";
   });
 
-  w.bind("start", [&app](const std::string& req) -> std::string {
+  // 注：绑定名避开浏览器内置 window.* 方法（stop/open/close/focus/print…）——
+  // 否则 JS 调到的是内置方法而非我们的绑定（window.stop 撞过坑）。
+  w.bind("startEngine", [&app](const std::string& req) -> std::string {
     if (!app.prepared)
       return "{\"ok\":false,\"msg\":\"模型未加载\"}";
     uint32_t pid = (uint32_t)std::stoul("0" + arg(req, 0));
@@ -143,7 +145,7 @@ int main() {
     return "{\"ok\":true,\"msg\":" + json_escape(app.routeMsg) + "}";
   });
 
-  w.bind("stop", [&app](const std::string&) -> std::string {
+  w.bind("stopEngine", [&app](const std::string&) -> std::string {
     app.engine.stop();
     app.router.restore();
     app.routeMsg = "";
