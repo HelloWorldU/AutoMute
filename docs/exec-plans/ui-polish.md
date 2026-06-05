@@ -70,8 +70,8 @@ frontend/                      ← 新前端工程（Vue/React/Svelte + TS + Vit
 | **U1 复刻现有功能** ✅ | 用 Vue/Naive 组件重建当前界面 | ✅ `App.vue` 复刻全部：NSelect(选 App,按 PID 去重) / NInput 抓取命名 / 目标名单(NProgress 仪表条+NSwitch 开关+点名改名+✕删) / 聚合仪表 / NAlert banner / 自适应自调度轮询；修布局 bug（`.grow{min-width:0}` 防溢出 + 窗口 `WEBVIEW_HINT_MIN` 最小尺寸）。构建/起窗口验通，真机交互待验 |
 | **Uw 窗口外壳** ✅ | 无边框 + 自绘标题栏 | ✅ `SetWindowSubclass` 子类化 webview 窗口过程：`WM_NCCALCSIZE` 吃掉原生标题栏/边框（最大化留边防盖任务栏）、`WM_NCHITTEST` 重建四边四角缩放热区；保留 WS_OVERLAPPEDWINDOW 风格→Snap/动画/任务栏正常；DWM 投影。绑定 `winMinimize/winToggleMaximize/winClose/winDrag/winIsMaximized`。前端自绘标题栏（Segoe Fluent 图标 min/max/close + `winDrag` 拖拽，避开 WebView2 不默认支持 app-region:drag）。构建/起窗口存活验通，真机拖拽/缩放/按钮待验 |
 | **U2 设计语言** ✅ | 主题与组件精致化 | ✅ 精致暗色令牌（Naive `themeOverrides`：冷调色板 #161719/#1d1e22、indigo 主色 #6b7bff、统一圆角/字号/卡片标题做成次级 label）；自绘标题栏品牌渐变点、窗口控制 hover、目标行 hover 高亮、细滚动条、Win11 圆角(DWMWCP_ROUND，Win10 忽略)。起窗口存活验通，观感待用户看 |
-| **U3 状态与细节** | 边角不掉链子 | 空名单/未运行/加载/错误态；disabled/hover/focus；窄窗自适应 |
-| **U4（可选）** | 锦上添花 | 图标、微动效、相似度仪表更生动的可视化 |
+| **U3 状态与细节** | 边角不掉链子 | 空名单/未运行/加载/错误态；disabled/hover/focus；窄窗自适应（基础已随 U1/U2 覆盖；深化暂缓） |
+| **U4（可选）** ✅ | 锦上添花 | ✅ 自定义相似度仪表（渐变填充 + 50% 阈值竖线刻度 + 超阈红色发光）；目标行进出 `<transition-group>` 淡入滑动；按钮内联 SVG 图标（刷新/播放·停止/抓取准星）；静音中顶部状态脉冲动画；细滚动条 |
 
 ## 约束与 note
 

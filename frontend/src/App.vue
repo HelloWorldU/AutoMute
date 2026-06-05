@@ -4,7 +4,7 @@
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import {
   NConfigProvider, NGlobalStyle, darkTheme, type GlobalThemeOverrides,
-  NCard, NSelect, NButton, NInput, NProgress, NSwitch, NAlert,
+  NCard, NSelect, NButton, NInput, NSwitch, NAlert,
   NText, NSpace, NEmpty, NTag, NInputGroup,
 } from 'naive-ui'
 import type { AppInfo, Status } from './webview'
@@ -171,7 +171,7 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
       <div class="titlebar" @mousedown="onTitleDown" @dblclick="onTitleDbl">
         <div class="tb-left">
           <span class="logo">AutoMute</span>
-          <span class="agg">
+          <span class="agg" :class="{ pulsing: running && status?.muted }">
             <template v-if="running">
               {{ status?.muted ? '🔇 静音中' : '🔊 放行' }} ·
               {{ (status?.similarity ?? 0).toFixed(2) }}
@@ -198,11 +198,24 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
             <div class="row">
               <n-select v-model:value="selectedPid" :options="appOptions"
                         placeholder="选一个在出声的进程" class="grow" />
-              <n-button quaternary @click="refreshApps">刷新</n-button>
+              <n-button quaternary @click="refreshApps">
+                <template #icon>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
+                       stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                       stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
+                </template>
+                刷新
+              </n-button>
             </div>
             <div class="row">
               <n-button :type="running ? 'error' : 'primary'" :loading="busy"
-                        @click="toggleRun">{{ running ? '停止' : '开始' }}</n-button>
+                        @click="toggleRun">
+                <template #icon>
+                  <svg v-if="running" viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /></svg>
+                  <svg v-else viewBox="0 0 24 24" width="14" height="14"><path d="M7 5v14l12-7z" fill="currentColor" /></svg>
+                </template>
+                {{ running ? '停止' : '开始' }}
+              </n-button>
               <n-text depth="3" class="rmsg">{{ routeMsg }}</n-text>
             </div>
           </n-space>
@@ -213,6 +226,10 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
             <n-input v-model:value="nameInput" placeholder="名字（可留空自动命名）"
                      @keyup.enter="capture" />
             <n-button type="primary" :disabled="!running" @click="capture">
+              <template #icon>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
+                     stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" /></svg>
+              </template>
               抓取当前说话人
             </n-button>
           </n-input-group>
@@ -222,15 +239,18 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
         <n-card title="目标名单 · 开了开关才掐" size="small" class="card">
           <n-empty v-if="!targets.length"
                    :description="running ? '某人说话时点「抓取当前说话人」登记' : '还没登记目标'" />
-          <div v-else class="tgts">
+          <transition-group v-else name="tgt" tag="div" class="tgts">
             <div v-for="(t, i) in targets" :key="i" class="tgt">
               <n-input v-if="editingIdx === i" v-model:value="editingName" size="tiny"
                        class="nm-edit" autofocus @blur="commitEdit"
                        @keyup.enter="commitEdit" @keyup.esc="editingIdx = -1" />
               <span v-else class="nm" title="点击改名" @click="startEdit(i, t.name)">{{ t.name }}</span>
-              <n-progress class="bar" type="line" :percentage="simPct(t.sim)"
-                          :status="t.muted ? 'error' : 'info'" :show-indicator="false"
-                          :height="8" :border-radius="4" />
+              <!-- 自定义仪表：渐变填充 + 50% 阈值刻度 + 超阈发光 -->
+              <div class="meter" title="相似度（竖线=0.5 触发阈值）">
+                <div class="meter-fill" :class="{ over: t.sim >= 0.5 }"
+                     :style="{ width: simPct(t.sim) + '%' }"></div>
+                <span class="meter-thresh"></span>
+              </div>
               <span class="sim">{{ t.sim.toFixed(2) }}</span>
               <n-tag :type="t.muted ? 'error' : 'default'" size="small" round>
                 {{ t.muted ? '静音中' : '放行' }}
@@ -240,7 +260,7 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
               <n-button quaternary circle size="tiny" class="del" title="删除"
                         @click="removeTarget(i)">✕</n-button>
             </div>
-          </div>
+          </transition-group>
         </n-card>
       </div>
     </div>
@@ -306,9 +326,27 @@ body { margin: 0; background: #161719; color: #e8e9ec;
 .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
       font-size: 13.5px; }
 .nm:hover { color: #6b7bff; }
-.bar { flex: 1; min-width: 40px; }
 .sim { width: 38px; text-align: right; font-size: 12.5px; color: #8b9099;
        font-variant-numeric: tabular-nums; }
 .del { color: #71767e; }
 .del:hover { color: #e5484d; }
+
+/* 自定义相似度仪表：渐变填充 + 阈值刻度 + 超阈发光 */
+.meter { flex: 1; min-width: 40px; height: 8px; position: relative;
+         background: rgba(255,255,255,0.06); border-radius: 5px; overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 5px;
+              background: linear-gradient(90deg, #5a69f0, #8b9bff);
+              transition: width .15s ease, background .2s, box-shadow .2s; }
+.meter-fill.over { background: linear-gradient(90deg, #e5484d, #ff7a7e);
+                   box-shadow: 0 0 10px rgba(229,72,77,.55); }
+.meter-thresh { position: absolute; top: -1px; bottom: -1px; left: 50%;
+                width: 2px; background: rgba(255,255,255,0.28); border-radius: 1px; }
+
+/* 目标行进出动效 */
+.tgt-enter-active, .tgt-leave-active { transition: all .22s ease; }
+.tgt-enter-from, .tgt-leave-to { opacity: 0; transform: translateY(-6px); }
+
+/* 静音中脉冲 */
+.agg.pulsing { color: #ff8488; animation: pulse 1.3s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 </style>

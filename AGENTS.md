@@ -33,6 +33,7 @@
 - ✅ M1 音频脊梁 / M2 声纹识别 / P2 进程级定向静音（真机闭环）
 - 🅿️ M3 调优暂告段落（滑动窗已接；窗长地板≈1.5s，缩窗反噬）
 - ✅ **M4 app 壳（GUI 化）v1 单人直播真机闭环验通**：M4.1 引擎解耦 / M4.2 引擎扩展 / M4.3 自动路由 / M4.4 GUI（含改名删目标等 UX 打磨）。流程：选 chrome→自动路由 CABLE→在线抓取命名→相似度拉开→掐他生效→退出还原
+- 🎨 **UI 打磨**（[ui-polish](docs/exec-plans/ui-polish.md)）：前端迁到 **Vue 3 + Naive UI**（Vite 构建单文件→嵌入），无边框自绘标题栏、精致暗色、生动仪表 —— U0/U1/Uw/U2/U4 ✅（U3 细节暂缓）
 - ▶️ **下一步：v1.1** —— 多人名单（引擎已按 N 设计、GUI 列表已支持）+ 配置/声纹持久化（免每次重抓）
 
 可执行：`automute_gui`(GUI 主程序, M4.4) / `automute_app`(CLI 前端) / `automute_ploop_probe`(抓取诊断) / `automute_sim_probe`(相似度) / `automute_detect`(实时检测)。
