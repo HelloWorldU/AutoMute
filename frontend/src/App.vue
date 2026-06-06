@@ -1,20 +1,27 @@
 <script setup lang="ts">
-// AutoMute GUI 前端（Vue 3 + Naive UI）。所有 window.xxx 是 C++ 绑定（webview.d.ts）。
-// Uw：无边框 + 自绘标题栏（窗口控制走 winMinimize/winToggleMaximize/winClose/winDrag）。
+// AutoMute GUI 前端（Vue 3 + Naive UI + vue-i18n）。window.xxx 是 C++ 绑定（webview.d.ts）。
+// 文案全走 i18n；后端只返回"码"，前端本地化。Uw：无边框 + 自绘标题栏。
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NConfigProvider, NGlobalStyle, darkTheme, type GlobalThemeOverrides,
+  zhCN, enUS, dateZhCN, dateEnUS,
   NCard, NSelect, NButton, NInput, NSwitch, NAlert,
   NText, NSpace, NEmpty, NTag, NInputGroup, NPopconfirm,
 } from 'naive-ui'
 import type { AppInfo, Status } from './webview'
 
-// —— 设计令牌（精致暗色 · 现代极简）——
+const { t, locale } = useI18n()
+const naiveLocale = computed(() => (locale.value === 'zh' ? zhCN : enUS))
+const naiveDate = computed(() => (locale.value === 'zh' ? dateZhCN : dateEnUS))
+function toggleLang() {
+  locale.value = locale.value === 'zh' ? 'en' : 'zh'
+  window.setLang?.(locale.value) // 持久化选择
+}
+
 const themeOverrides: GlobalThemeOverrides = {
   common: {
-    bodyColor: '#161719',
-    cardColor: '#1d1e22',
-    popoverColor: '#202126',
+    bodyColor: '#161719', cardColor: '#1d1e22', popoverColor: '#202126',
     borderColor: 'rgba(255,255,255,0.08)',
     primaryColor: '#6b7bff', primaryColorHover: '#828fff',
     primaryColorPressed: '#5a69f0', primaryColorSuppl: '#6b7bff',
@@ -38,17 +45,26 @@ const themeOverrides: GlobalThemeOverrides = {
   Alert: { borderRadius: '9px' },
 }
 
+// 持久态消息存"键+参数"，切语言时自动重译。
+type Msg = { key: string; params?: Record<string, unknown> } | null
 const apps = ref<AppInfo[]>([])
 const selectedPid = ref<number | null>(null)
 const status = ref<Status | null>(null)
-const banner = ref('')
-const capMsg = ref('')
+const banner = ref<Msg>(null)
+const capMsg = ref<Msg>(null)
 const busy = ref(false)
 const nameInput = ref('')
 
 const running = computed(() => status.value?.running ?? false)
 const targets = computed(() => status.value?.targets ?? [])
-const routeMsg = computed(() => status.value?.routeMsg ?? '')
+const bannerText = computed(() => (banner.value ? t(banner.value.key, banner.value.params ?? {}) : ''))
+const capText = computed(() => (capMsg.value ? t(capMsg.value.key, capMsg.value.params ?? {}) : ''))
+const routeLine = computed(() => {
+  const s = status.value?.routeStatus
+  if (!s) return ''
+  const d = status.value?.routeDetail
+  return t('route.' + s) + (d ? ` (${d})` : '')
+})
 
 const appOptions = computed(() => {
   const byPid = new Map<number, AppInfo>()
@@ -57,7 +73,7 @@ const appOptions = computed(() => {
     if (!cur || (a.active && !cur.active)) byPid.set(a.pid, a)
   }
   return [...byPid.values()].map((a) => ({
-    label: `${a.name} · PID ${a.pid}${a.active ? ' · 出声中' : ''} → ${a.device}`,
+    label: `${a.name} · PID ${a.pid}${a.active ? ' · ' + t('sel.sounding') : ''} → ${a.device}`,
     value: a.pid,
   }))
 })
@@ -69,11 +85,15 @@ async function refreshApps() {
 }
 
 async function toggleRun() {
-  if (!running.value && !selectedPid.value) { banner.value = '请先选一个 App'; return }
+  if (!running.value && !selectedPid.value) { banner.value = { key: 'enroll.pickFirst' }; return }
   busy.value = true
   try {
-    if (!running.value) await window.startEngine(selectedPid.value!)
-    else await window.stopEngine()
+    if (!running.value) {
+      const r = await window.startEngine(selectedPid.value!)
+      if (!r.ok) banner.value = { key: 'err.' + (r.error ?? 'engine'), params: { detail: r.detail ?? '' } }
+    } else {
+      await window.stopEngine()
+    }
   } finally {
     busy.value = false
     kickPoll()
@@ -81,28 +101,28 @@ async function toggleRun() {
 }
 
 async function capture() {
-  if (!running.value) { capMsg.value = '先点「开始」再抓取'; return }
-  const r = await window.capture(nameInput.value.trim())
-  capMsg.value = r.ok
-    ? `已登记 #${r.idx}：点名字可改名、右侧开关掐他、✕ 删除`
-    : '抓取失败：' + r.msg
-  if (r.ok) nameInput.value = ''
+  if (!running.value) { capMsg.value = { key: 'enroll.needStart' }; return }
+  const name = nameInput.value.trim() || `${t('enroll.targetWord')} ${targets.value.length + 1}`
+  const r = await window.capture(name)
+  if (r.ok) {
+    capMsg.value = { key: 'enroll.done', params: { idx: r.idx } }
+    nameInput.value = ''
+  } else {
+    capMsg.value = r.error === 'no_audio'
+      ? { key: 'err.no_audio' }
+      : { key: 'err.enroll', params: { detail: r.detail ?? '' } }
+  }
 }
 
 async function setMuted(idx: number, on: boolean) { await window.setMuted(idx, on) }
 async function removeTarget(idx: number) { await window.removeTarget(idx); kickPoll() }
 
-// 多人：开了静音开关的数量 + 一键全掐/全放。
 const mutedCount = computed(() => targets.value.filter((t) => t.muted).length)
 async function muteAll(on: boolean) {
   for (let i = 0; i < targets.value.length; ++i) await window.setMuted(i, on)
   kickPoll()
 }
-// 持久化：名单自动存盘/启动自动加载；清空是逃生按钮（NPopconfirm 确认）。
-async function clearAll() {
-  await window.clearTargets?.()
-  kickPoll()
-}
+async function clearAll() { await window.clearTargets?.(); kickPoll() }
 
 const editingIdx = ref(-1)
 const editingName = ref('')
@@ -125,11 +145,11 @@ async function poll() {
 function kickPoll() { if (timer) clearTimeout(timer); poll() }
 
 async function init() {
-  if (window.__prepareErr) banner.value = '模型加载失败：' + window.__prepareErr
+  if (window.__prepareErr) banner.value = { key: 'err.modelLoad', params: { detail: window.__prepareErr } }
   try {
     const c = await window.cableStatus()
-    if (!c.installed) banner.value = '未检测到 VB-CABLE：装一下 vb-audio.com/Cable/ 才能自动隔离原声。'
-    else if (!c.available) banner.value = '本机不支持自动路由，开始后需手动在「音量合成器」把该 App 设为 CABLE Input。'
+    if (!c.installed) banner.value = { key: 'banner.cable' }
+    else if (!c.available) banner.value = { key: 'banner.routeUnavailable' }
   } catch { /* ignore */ }
   await refreshApps()
   refreshMax()
@@ -140,12 +160,10 @@ onUnmounted(() => { if (timer) clearTimeout(timer) })
 
 function simPct(s: number) { return Math.max(0, Math.min(1, s)) * 100 }
 
-// —— Uw：自绘标题栏窗口控制（Segoe Fluent/MDL2 图标 PUA 码点，用 fromCharCode 避免源码嵌字）——
+// Uw：自绘标题栏窗口控制（Segoe Fluent/MDL2 图标 PUA 码点）。
 const ICON = {
-  min: String.fromCharCode(0xe921),
-  max: String.fromCharCode(0xe922),
-  restore: String.fromCharCode(0xe923),
-  close: String.fromCharCode(0xe8bb),
+  min: String.fromCharCode(0xe921), max: String.fromCharCode(0xe922),
+  restore: String.fromCharCode(0xe923), close: String.fromCharCode(0xe8bb),
 }
 const isMax = ref(false)
 async function refreshMax() { isMax.value = (await window.winIsMaximized?.()) ?? false }
@@ -153,23 +171,22 @@ function winMin() { window.winMinimize?.() }
 async function winMax() { await window.winToggleMaximize?.(); refreshMax() }
 function winClose() { window.winClose?.() }
 function onTitleDown(e: MouseEvent) {
-  if ((e.target as HTMLElement).closest('.wc')) return // 点控制按钮不拖
+  if ((e.target as HTMLElement).closest('.wc')) return
   window.winDrag?.()
 }
 function onTitleDbl(e: MouseEvent) {
   if ((e.target as HTMLElement).closest('.wc')) return
   winMax()
 }
-// 边缘缩放手柄：WebView2 盖住整窗，靠 HTML 手柄发起缩放（HT 方向码）。
 const HT = { L: 10, R: 11, T: 12, TL: 13, TR: 14, B: 15, BL: 16, BR: 17 }
 function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
 </script>
 
 <template>
-  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides"
+                     :locale="naiveLocale" :date-locale="naiveDate">
     <n-global-style />
     <div class="shell">
-      <!-- 边缘缩放手柄（WebView2 盖住整窗→父窗口边缘 hit-test 失效，用 HTML 手柄）-->
       <div class="rz rz-t" @mousedown="rz(HT.T)"></div>
       <div class="rz rz-b" @mousedown="rz(HT.B)"></div>
       <div class="rz rz-l" @mousedown="rz(HT.L)"></div>
@@ -179,111 +196,110 @@ function rz(ht: number) { if (!isMax.value) window.winResize?.(ht) }
       <div class="rz rz-bl" @mousedown="rz(HT.BL)"></div>
       <div class="rz rz-br" @mousedown="rz(HT.BR)"></div>
 
-      <!-- 自绘标题栏 -->
       <div class="titlebar" @mousedown="onTitleDown" @dblclick="onTitleDbl">
         <div class="tb-left">
           <span class="logo">AutoMute</span>
           <span class="agg" :class="{ pulsing: running && status?.muted }">
             <template v-if="running">
-              {{ status?.muted ? '🔇 静音中' : '🔊 放行' }} ·
+              {{ status?.muted ? t('agg.muted') : t('agg.pass') }} ·
               {{ (status?.similarity ?? 0).toFixed(2) }}
             </template>
-            <template v-else>未运行</template>
+            <template v-else>{{ t('agg.idle') }}</template>
           </span>
         </div>
         <div class="tb-ctrls">
-          <button class="wc" title="最小化" @click="winMin">{{ ICON.min }}</button>
-          <button class="wc" title="最大化/还原" @click="winMax">
+          <button class="wc langbtn" :title="t('win.lang')" @click="toggleLang">
+            {{ locale === 'zh' ? '中/EN' : 'EN/中' }}
+          </button>
+          <button class="wc" :title="t('win.min')" @click="winMin">{{ ICON.min }}</button>
+          <button class="wc" :title="t('win.max')" @click="winMax">
             {{ isMax ? ICON.restore : ICON.max }}
           </button>
-          <button class="wc close" title="关闭" @click="winClose">{{ ICON.close }}</button>
+          <button class="wc close" :title="t('win.close')" @click="winClose">{{ ICON.close }}</button>
         </div>
       </div>
 
-      <!-- 内容区 -->
       <div class="body">
         <n-alert v-if="banner" type="warning" :bordered="false" class="banner" closable
-                 @close="banner = ''">{{ banner }}</n-alert>
+                 @close="banner = null">{{ bannerText }}</n-alert>
 
-        <n-card title="目标 App" size="small" class="card">
+        <n-card :title="t('card.app')" size="small" class="card">
           <n-space vertical :size="10">
             <div class="row">
               <n-select v-model:value="selectedPid" :options="appOptions"
-                        placeholder="选一个在出声的进程" class="grow" />
+                        :placeholder="t('sel.placeholder')" class="grow" />
               <n-button quaternary @click="refreshApps">
                 <template #icon>
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
                        stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
                 </template>
-                刷新
+                {{ t('btn.refresh') }}
               </n-button>
             </div>
             <div class="row">
-              <n-button :type="running ? 'error' : 'primary'" :loading="busy"
-                        @click="toggleRun">
+              <n-button :type="running ? 'error' : 'primary'" :loading="busy" @click="toggleRun">
                 <template #icon>
                   <svg v-if="running" viewBox="0 0 24 24" width="14" height="14"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /></svg>
                   <svg v-else viewBox="0 0 24 24" width="14" height="14"><path d="M7 5v14l12-7z" fill="currentColor" /></svg>
                 </template>
-                {{ running ? '停止' : '开始' }}
+                {{ running ? t('btn.stop') : t('btn.start') }}
               </n-button>
-              <n-text depth="3" class="rmsg">{{ routeMsg }}</n-text>
+              <n-text depth="3" class="rmsg">{{ routeLine }}</n-text>
             </div>
           </n-space>
         </n-card>
 
-        <n-card title="圈人 · 边看边登记（说话时点）" size="small" class="card">
+        <n-card :title="t('card.enroll')" size="small" class="card">
           <n-input-group>
-            <n-input v-model:value="nameInput" placeholder="名字（可留空自动命名）"
+            <n-input v-model:value="nameInput" :placeholder="t('enroll.placeholder')"
                      @keyup.enter="capture" />
             <n-button type="primary" :disabled="!running" @click="capture">
               <template #icon>
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
                      stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" /></svg>
               </template>
-              抓取当前说话人
+              {{ t('btn.capture') }}
             </n-button>
           </n-input-group>
-          <n-text v-if="capMsg" depth="3" class="capmsg">{{ capMsg }}</n-text>
+          <n-text v-if="capMsg" depth="3" class="capmsg">{{ capText }}</n-text>
         </n-card>
 
-        <n-card title="目标名单 · 开了开关才掐" size="small" class="card">
+        <n-card :title="t('card.list')" size="small" class="card">
           <template #header-extra>
             <div class="bulk" v-if="targets.length">
-              <span class="cnt">{{ mutedCount }}/{{ targets.length }} 掐</span>
-              <n-button text size="tiny" type="error" @click="muteAll(true)">全掐</n-button>
-              <n-button text size="tiny" @click="muteAll(false)">全放</n-button>
-              <n-popconfirm @positive-click="clearAll" positive-text="清空" negative-text="算了">
+              <span class="cnt">{{ t('list.count', { m: mutedCount, n: targets.length }) }}</span>
+              <n-button text size="tiny" type="error" @click="muteAll(true)">{{ t('btn.cutAll') }}</n-button>
+              <n-button text size="tiny" @click="muteAll(false)">{{ t('btn.passAll') }}</n-button>
+              <n-popconfirm @positive-click="clearAll" :positive-text="t('btn.clearYes')" :negative-text="t('btn.clearNo')">
                 <template #trigger>
-                  <n-button text size="tiny" class="cnt">清空</n-button>
+                  <n-button text size="tiny" class="cnt">{{ t('btn.clear') }}</n-button>
                 </template>
-                清空整个名单？已保存的声纹也会删除。
+                {{ t('list.clearConfirm') }}
               </n-popconfirm>
             </div>
           </template>
           <n-empty v-if="!targets.length"
-                   :description="running ? '某人说话时点「抓取当前说话人」登记' : '还没登记目标'" />
+                   :description="running ? t('list.emptyRunning') : t('list.emptyIdle')" />
           <transition-group v-else name="tgt" tag="div" class="tgts">
-            <div v-for="(t, i) in targets" :key="i" class="tgt"
-                 :class="{ speaking: t.sim >= 0.5, cut: t.sim >= 0.5 && t.muted }">
+            <div v-for="(tt, i) in targets" :key="i" class="tgt"
+                 :class="{ speaking: tt.sim >= 0.5, cut: tt.sim >= 0.5 && tt.muted }">
               <n-input v-if="editingIdx === i" v-model:value="editingName" size="tiny"
                        class="nm-edit" autofocus @blur="commitEdit"
                        @keyup.enter="commitEdit" @keyup.esc="editingIdx = -1" />
-              <span v-else class="nm" title="点击改名" @click="startEdit(i, t.name)">{{ t.name }}</span>
-              <!-- 自定义仪表：渐变填充 + 50% 阈值刻度 + 超阈发光 -->
-              <div class="meter" title="相似度（竖线=0.5 触发阈值）">
-                <div class="meter-fill" :class="{ over: t.sim >= 0.5 }"
-                     :style="{ width: simPct(t.sim) + '%' }"></div>
+              <span v-else class="nm" :title="t('list.renameTip')" @click="startEdit(i, tt.name)">{{ tt.name }}</span>
+              <div class="meter" :title="t('list.meterTip')">
+                <div class="meter-fill" :class="{ over: tt.sim >= 0.5 }"
+                     :style="{ width: simPct(tt.sim) + '%' }"></div>
                 <span class="meter-thresh"></span>
               </div>
-              <span class="sim">{{ t.sim.toFixed(2) }}</span>
-              <n-tag :type="t.muted ? 'error' : 'default'" size="small" round>
-                {{ t.muted ? '静音中' : '放行' }}
+              <span class="sim">{{ tt.sim.toFixed(2) }}</span>
+              <n-tag :type="tt.muted ? 'error' : 'default'" size="small" round>
+                {{ tt.muted ? t('list.muted') : t('list.pass') }}
               </n-tag>
-              <n-switch :value="t.muted" size="small"
+              <n-switch :value="tt.muted" size="small"
                         @update:value="(v: boolean) => setMuted(i, v)" />
-              <n-button quaternary circle size="tiny" class="del" title="删除"
+              <n-button quaternary circle size="tiny" class="del" :title="t('list.delete')"
                         @click="removeTarget(i)">✕</n-button>
             </div>
           </transition-group>
@@ -305,7 +321,6 @@ body { margin: 0; background: #161719; color: #e8e9ec;
 .shell { height: 100vh; display: flex; flex-direction: column; overflow: hidden;
          position: relative; }
 
-/* 边缘缩放手柄：贴窗口四边四角，透明，盖在最上层 */
 .rz { position: fixed; z-index: 9999; }
 .rz-t { top: 0; left: 6px; right: 6px; height: 5px; cursor: ns-resize; }
 .rz-b { bottom: 0; left: 6px; right: 6px; height: 5px; cursor: ns-resize; }
@@ -316,7 +331,6 @@ body { margin: 0; background: #161719; color: #e8e9ec;
 .rz-bl { bottom: 0; left: 0; width: 8px; height: 8px; cursor: nesw-resize; }
 .rz-br { bottom: 0; right: 0; width: 8px; height: 8px; cursor: nwse-resize; }
 
-/* 自绘标题栏 */
 .titlebar { height: 38px; flex: none; display: flex; align-items: center;
             justify-content: space-between; user-select: none;
             background: #131416; border-bottom: 1px solid rgba(255,255,255,0.06); }
@@ -334,8 +348,9 @@ body { margin: 0; background: #161719; color: #e8e9ec;
       transition: background .12s, color .12s; }
 .wc:hover { background: rgba(255,255,255,0.07); color: #e8e9ec; }
 .wc.close:hover { background: #e5484d; color: #fff; }
+.wc.langbtn { width: auto; padding: 0 11px; font-family: inherit; font-size: 11px;
+      font-weight: 600; letter-spacing: .3px; }
 
-/* 内容区（可滚动） */
 .body { flex: 1; overflow: auto; padding: 14px; display: flex;
         flex-direction: column; gap: 11px; min-width: 0; }
 .banner { font-size: 13px; }
@@ -348,7 +363,6 @@ body { margin: 0; background: #161719; color: #e8e9ec;
 .tgt { display: flex; align-items: center; gap: 10px; padding: 8px 6px;
        border-radius: 7px; position: relative; transition: background .12s; }
 .tgt:hover { background: rgba(255,255,255,0.03); }
-/* 谁在说话：相似度过阈即高亮（indigo=放行通过 / 红=正被掐） */
 .tgt.speaking { background: rgba(107,123,255,0.09); }
 .tgt.speaking.cut { background: rgba(229,72,77,0.10); }
 .tgt.speaking::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
@@ -365,7 +379,6 @@ body { margin: 0; background: #161719; color: #e8e9ec;
 .del { color: #71767e; }
 .del:hover { color: #e5484d; }
 
-/* 自定义相似度仪表：渐变填充 + 阈值刻度 + 超阈发光 */
 .meter { flex: 1; min-width: 40px; height: 8px; position: relative;
          background: rgba(255,255,255,0.06); border-radius: 5px; overflow: hidden; }
 .meter-fill { height: 100%; border-radius: 5px;
@@ -376,11 +389,9 @@ body { margin: 0; background: #161719; color: #e8e9ec;
 .meter-thresh { position: absolute; top: -1px; bottom: -1px; left: 50%;
                 width: 2px; background: rgba(255,255,255,0.28); border-radius: 1px; }
 
-/* 目标行进出动效 */
 .tgt-enter-active, .tgt-leave-active { transition: all .22s ease; }
 .tgt-enter-from, .tgt-leave-to { opacity: 0; transform: translateY(-6px); }
 
-/* 静音中脉冲 */
 .agg.pulsing { color: #ff8488; animation: pulse 1.3s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 </style>

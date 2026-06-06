@@ -20,7 +20,8 @@ export interface Status {
   muted: boolean
   similarity: number
   routed: boolean
-  routeMsg: string
+  routeStatus: string // 码：'' | 'routed' | 'cable_missing' | 'route_failed' | 'unavailable'
+  routeDetail: string // 失败时的原始诊断（未翻译）
   targets: TargetView[]
 }
 
@@ -28,13 +29,15 @@ declare global {
   interface Window {
     listApps(): Promise<AppInfo[]>
     cableStatus(): Promise<{ available: boolean; installed: boolean }>
-    startEngine(pid: number): Promise<{ ok: boolean; msg: string }>
+    // 后端只返回码 + 诊断 detail，前端本地化。
+    startEngine(pid: number): Promise<{ ok: boolean; error?: string; detail?: string }>
     stopEngine(): Promise<{ ok: boolean }>
-    capture(name: string): Promise<{ ok: boolean; idx?: number; msg?: string }>
+    capture(name: string): Promise<{ ok: boolean; idx?: number; error?: string; detail?: string }>
     setMuted(idx: number, on: boolean): Promise<{ ok: boolean }>
     renameTarget(idx: number, name: string): Promise<{ ok: boolean }>
     removeTarget(idx: number): Promise<{ ok: boolean }>
     clearTargets(): Promise<{ ok: boolean }>
+    setLang(code: string): Promise<{ ok: boolean }>
     getStatus(): Promise<Status>
     // 窗口外壳（Uw：无边框 + 自绘标题栏）
     winMinimize?(): Promise<unknown>

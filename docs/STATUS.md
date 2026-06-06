@@ -36,7 +36,7 @@
 | **引擎 AutoMuteEngine（M4.1+M4.2）** | ✅ | 抓取+渲染+分析三线程核心，与界面解耦：`prepare→start→similarity/muted→stop`；多目标 + `snapshotRecent`。CLI/GUI 共用 | `engine.{h,cpp}` |
 | **每应用路由 AppRouter（M4.3）** | ✅ | 与引擎解耦。检测 CABLE + 未公开 `IAudioPolicyConfigFactory` route/restore（双 role）+ RAII 还原 + 崩溃 journal 兜底 + ClearAll。⚠️ 接口类型须外部链接（否则 GCC -O2 去虚化跳飞）；运行中用户手改设备会冲突（v1 不监听，backlog） | `audio/app_router.{h,cpp}` |
 | **CLI 前端 `automute_app`（P2.4）** | ✅ | `--proc <PID>` 驱动引擎的薄 CLI；调参旋钮 + 热键 c/1-9 冰测；引擎诊断入口 | `app_main.cpp` |
-| **GUI `automute_gui`（M4.4 + UI 打磨）** | ✅ | C++ webview 宿主 + **Vue 3 + Naive UI** 前端（`frontend/`→Vite 构建单文件→`scripts/embed-frontend.mjs` 嵌入 `kIndexHtml`，C++ 9 绑定不变）。无边框自绘标题栏、精致暗色、生动仪表 | `gui_main.cpp`, `gui_html.cpp`(生成), `frontend/` |
+| **GUI `automute_gui`（M4.4 + UI 打磨）** | ✅ | C++ webview 宿主 + **Vue 3 + Naive UI** 前端（`frontend/`→Vite 构建单文件→`scripts/embed-frontend.mjs` 嵌入 `kIndexHtml`）。无边框自绘标题栏、精致暗色、生动仪表、**中英 i18n**（vue-i18n + Naive locale，标题栏切换、`setLang` 持久化、后端只返回码前端本地化） | `gui_main.cpp`, `gui_html.cpp`(生成), `frontend/` |
 | **声纹名单持久化（v1.1）** | ✅ | 引擎 `setPersistPath/loadTargets/clearTargets`，增删改/切开关自动存盘（二进制 `%LOCALAPPDATA%\AutoMute\targets.bin`）、启动自动加载；GUI 加「清空」。免每次重抓 | `automute/engine.{h,cpp}` |
 | **测试（doctest + ctest）** | ✅ | Tier1 单元(环形缓冲/历史环/重采样, 224 断言) + Tier2 集成(声纹管线 同人 0.83/异人 0.03 + 名单持久化往返) + Tier3 冒烟脚本。详见 [`testing.md`](testing.md) | `tests/`, `automute/audio/history_ring.h` |
 | VAD + 阈值迟滞 | ❌ | M3.2/M3.3，边际小暂缓 | — |
@@ -54,5 +54,5 @@
 ---
 
 *产品形态 = 进程 loopback + 虚拟声卡路由隔离原声。**M4 v1 单人直播真机端到端闭环**。
-**v1.1 进行中**：多人 UX（谁在说话高亮 + 全掐/全放，✅；真机多人待验）+ 声纹名单持久化（✅）。
-余下可选：M3.2 VAD / M3.3 阈值迟滞（多人时更值得）/ 换短时模型缩短头部泄漏。*
+**v1.1 进行中**：多人 UX ✅ + 声纹名单持久化 ✅ + 中英 i18n ✅（真机多人/切语言待验）。
+余下可选：M3.2 VAD / M3.3 阈值迟滞（多人时更值得）/ 掐声淡入淡出 / 换短时模型缩短头部泄漏。*

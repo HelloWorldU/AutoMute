@@ -21,6 +21,8 @@
 #include <windowsx.h> // GET_X_LPARAM / GET_Y_LPARAM
 
 #include <atomic>
+#include <cstdlib>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -40,7 +42,8 @@ struct App {
   approuter::AppRouter router;
   bool prepared = false;
   uint32_t pid = 0;
-  std::string routeMsg; // 最近一次路由结果提示
+  std::string routeStatus; // 码（前端本地化）：routed/cable_missing/route_failed/unavailable
+  std::string routeDetail; // 失败时原始诊断（未翻译）
 };
 
 std::string b(bool v) { return v ? "true" : "false"; }
@@ -53,6 +56,23 @@ std::string num(double v) {
 // req 是 JS 实参的 JSON 数组字符串，取第 idx 个位置参数。
 std::string arg(const std::string& req, unsigned idx) {
   return json_parse(req, "", idx);
+}
+
+// %LOCALAPPDATA%\AutoMute（确保存在）：放 targets.bin / lang.txt 等。
+std::string amDir() {
+  const char* base = getenv("LOCALAPPDATA");
+  std::string dir = base ? base : ".";
+  dir += "\\AutoMute";
+  CreateDirectoryA(dir.c_str(), nullptr);
+  return dir;
+}
+// 读持久化的界面语言（仅接受 zh/en，否则空=按系统语言猜）。
+std::string readLang() {
+  std::ifstream f(amDir() + "\\lang.txt");
+  std::string s;
+  if (f)
+    std::getline(f, s);
+  return (s == "zh" || s == "en") ? s : std::string();
 }
 
 std::string listAppsJson() {
@@ -83,8 +103,9 @@ std::string statusJson(App& app) {
   return "{\"running\":" + b(app.engine.running()) + ",\"muted\":" +
          b(app.engine.muted()) + ",\"similarity\":" +
          num(app.engine.similarity()) + ",\"routed\":" +
-         b(app.router.routed()) + ",\"routeMsg\":" + json_escape(app.routeMsg) +
-         ",\"targets\":" + t + "}";
+         b(app.router.routed()) + ",\"routeStatus\":" +
+         json_escape(app.routeStatus) + ",\"routeDetail\":" +
+         json_escape(app.routeDetail) + ",\"targets\":" + t + "}";
 }
 
 // 无边框窗口（Uw）：子类化 webview 的窗口过程。保留 WS_OVERLAPPEDWINDOW 风格
@@ -174,13 +195,9 @@ int main() {
   std::string prepareErr = app.prepared ? "" : err;
 
   // 持久化：声纹名单存 %LOCALAPPDATA%\AutoMute\targets.bin，启动自动读回。
-  if (const char* base = getenv("LOCALAPPDATA")) {
-    std::string dir = std::string(base) + "\\AutoMute";
-    CreateDirectoryA(dir.c_str(), nullptr);
-    app.engine.setPersistPath(dir + "\\targets.bin");
-    std::string lerr;
-    app.engine.loadTargets(lerr); // 失败(文件损坏)忽略，当空名单
-  }
+  app.engine.setPersistPath(amDir() + "\\targets.bin");
+  std::string lerr;
+  app.engine.loadTargets(lerr); // 失败(文件损坏)忽略，当空名单
 
   w.bind("listApps",
          [](const std::string&) -> std::string { return listAppsJson(); });
@@ -196,36 +213,41 @@ int main() {
   // 否则 JS 调到的是内置方法而非我们的绑定（window.stop 撞过坑）。
   w.bind("startEngine", [&app](const std::string& req) -> std::string {
     if (!app.prepared)
-      return "{\"ok\":false,\"msg\":\"模型未加载\"}";
+      return "{\"ok\":false,\"error\":\"model\"}";
     uint32_t pid = (uint32_t)std::stoul("0" + arg(req, 0));
     if (pid == 0)
-      return "{\"ok\":false,\"msg\":\"无效 PID\"}";
-    // 自动路由（失败不挡启动，回退引导手动）。
-    app.routeMsg = "";
+      return "{\"ok\":false,\"error\":\"pid\"}";
+    // 自动路由（失败不挡启动，回退引导手动）。只设码 + 诊断，前端本地化。
+    app.routeStatus.clear();
+    app.routeDetail.clear();
     if (app.router.available()) {
       std::string id, e;
       if (!approuter::cableInstalled(id))
-        app.routeMsg = "未装 VB-CABLE，请手动路由或安装";
+        app.routeStatus = "cable_missing";
       else if (app.router.route(pid, id, e))
-        app.routeMsg = "已自动路由到 VB-CABLE";
-      else
-        app.routeMsg = "自动路由失败，请手动设置：" + e;
+        app.routeStatus = "routed";
+      else {
+        app.routeStatus = "route_failed";
+        app.routeDetail = e;
+      }
     } else {
-      app.routeMsg = "本机不支持自动路由，请手动把该 App 设为 CABLE Input";
+      app.routeStatus = "unavailable";
     }
     std::string e;
     if (!app.engine.start(pid, e)) {
       app.router.restore();
-      return "{\"ok\":false,\"msg\":" + json_escape("启动失败：" + e) + "}";
+      return "{\"ok\":false,\"error\":\"engine\",\"detail\":" + json_escape(e) +
+             "}";
     }
     app.pid = pid;
-    return "{\"ok\":true,\"msg\":" + json_escape(app.routeMsg) + "}";
+    return "{\"ok\":true}";
   });
 
   w.bind("stopEngine", [&app](const std::string&) -> std::string {
     app.engine.stop();
     app.router.restore();
-    app.routeMsg = "";
+    app.routeStatus.clear();
+    app.routeDetail.clear();
     return "{\"ok\":true}";
   });
 
@@ -233,14 +255,15 @@ int main() {
     std::vector<float> snap;
     uint32_t sr = 0;
     if (!app.engine.snapshotRecent(3.0f, snap, sr) || snap.empty())
-      return "{\"ok\":false,\"msg\":\"还没抓到声音，等目标出声再试\"}";
+      return "{\"ok\":false,\"error\":\"no_audio\"}";
     std::string name = arg(req, 0);
     if (name.empty())
-      name = "目标" + std::to_string(app.engine.targetCount() + 1);
+      name = "Target " + std::to_string(app.engine.targetCount() + 1);
     std::string e;
     int idx = app.engine.addTarget(name, snap, sr, e);
     if (idx < 0)
-      return "{\"ok\":false,\"msg\":" + json_escape(e) + "}";
+      return "{\"ok\":false,\"error\":\"enroll\",\"detail\":" + json_escape(e) +
+             "}";
     return "{\"ok\":true,\"idx\":" + std::to_string(idx) + "}";
   });
 
@@ -273,6 +296,17 @@ int main() {
   w.bind("getStatus",
          [&app](const std::string&) -> std::string { return statusJson(app); });
 
+  // 持久化界面语言选择（zh/en）。
+  w.bind("setLang", [](const std::string& req) -> std::string {
+    std::string code = arg(req, 0);
+    if (code == "zh" || code == "en") {
+      std::ofstream f(amDir() + "\\lang.txt", std::ios::trunc);
+      if (f)
+        f << code;
+    }
+    return "{\"ok\":true}";
+  });
+
   // ── Uw：窗口控制（自绘标题栏调用）──
   w.bind("winMinimize", [hwnd](const std::string&) -> std::string {
     ShowWindow(hwnd, SW_MINIMIZE);
@@ -304,14 +338,17 @@ int main() {
     return IsZoomed(hwnd) ? "true" : "false";
   });
 
-  // 前端页面（内嵌，避免运行时找文件）。模型加载失败也照常显示，给出提示。
+  // 前端页面（内嵌，避免运行时找文件）。启动前把"保存的语言"和"模型错误"
+  // 注入成全局变量，前端读出来用（__lang 决定初始界面语言）。
   extern const char* kIndexHtml;
-  std::string html = kIndexHtml;
-  if (!prepareErr.empty()) {
-    // 把错误塞进页面一个全局变量，前端读出来提示。
-    html = "<script>window.__prepareErr=" + json_escape(prepareErr) +
-           ";</script>" + html;
-  }
+  std::string inject;
+  if (std::string lang = readLang(); !lang.empty())
+    inject += "window.__lang=" + json_escape(lang) + ";";
+  if (!prepareErr.empty())
+    inject += "window.__prepareErr=" + json_escape(prepareErr) + ";";
+  std::string html = inject.empty()
+                         ? std::string(kIndexHtml)
+                         : "<script>" + inject + "</script>" + kIndexHtml;
   w.set_html(html);
   w.run();
 
